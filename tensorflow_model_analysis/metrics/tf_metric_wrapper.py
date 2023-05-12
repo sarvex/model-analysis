@@ -78,12 +78,10 @@ def tf_metric_computations(
     metrics = {'': metrics}
 
   if aggregation_type is not None:
-    sparse_metrics = _sparse_metrics(metrics)
-    if sparse_metrics:
+    if sparse_metrics := _sparse_metrics(metrics):
       raise ValueError(
-          'sparse metrics cannot be used with aggregation options. Either '
-          'disable aggregation settings or replace the sparse metrics with'
-          'non-sparse versions: {}'.format(sparse_metrics))
+          f'sparse metrics cannot be used with aggregation options. Either disable aggregation settings or replace the sparse metrics withnon-sparse versions: {sparse_metrics}'
+      )
 
   metrics = _filter_duplicate_metrics(metrics, model_name, sub_key)
 
@@ -123,24 +121,23 @@ def tf_metric_computations(
     metric_keys, metric_configs, loss_configs = _metric_keys_and_configs(
         non_confusion_matrix_metrics, model_name, sub_key, aggregation_type,
         example_weighted)
-    for sub_key, keys in metric_keys.items():
-      computations.append(
-          metric_types.MetricComputation(
-              keys=keys,
-              preprocessor=None,
-              combiner=_CompilableMetricsCombiner(
-                  metric_configs[sub_key],
-                  loss_configs[sub_key],
-                  custom_objects,
-                  eval_config,
-                  model_name,
-                  sub_key,
-                  aggregation_type,
-                  class_weights,
-                  example_weighted,
-                  desired_batch_size,
-              )))
-
+    computations.extend(
+        metric_types.MetricComputation(
+            keys=keys,
+            preprocessor=None,
+            combiner=_CompilableMetricsCombiner(
+                metric_configs[sub_key],
+                loss_configs[sub_key],
+                custom_objects,
+                eval_config,
+                model_name,
+                sub_key,
+                aggregation_type,
+                class_weights,
+                example_weighted,
+                desired_batch_size,
+            ),
+        ) for sub_key, keys in metric_keys.items())
   return computations
 
 
@@ -218,16 +215,14 @@ def _verify_and_update_sub_key(model_name: str, output_name: str,
   if hasattr(metric, _CLASS_ID_KEY) and metric.class_id is not None:
     if sub_key and sub_key.class_id != metric.class_id:
       raise ValueError(
-          '{} tf.keras.metric has class_id = {}, but the metric is being added '
-          'using sub_key = {}: model_name={}, output_name={}'.format(
-              metric.name, metric.class_id, sub_key, model_name, output_name))
+          f'{metric.name} tf.keras.metric has class_id = {metric.class_id}, but the metric is being added using sub_key = {sub_key}: model_name={model_name}, output_name={output_name}'
+      )
     return metric_types.SubKey(class_id=metric.class_id)
   elif hasattr(metric, _TOP_K_KEY) and metric.top_k is not None:
     if sub_key and sub_key.top_k != metric.top_k:
       raise ValueError(
-          '{} tf.keras.metric has top_k = {}, but the metric is being added '
-          'using sub_key = {}: model_name={}, output_name={}'.format(
-              metric.name, metric.top_k, sub_key, model_name, output_name))
+          f'{metric.name} tf.keras.metric has top_k = {metric.top_k}, but the metric is being added using sub_key = {sub_key}: model_name={model_name}, output_name={output_name}'
+      )
     return metric_types.SubKey(top_k=metric.top_k)
   else:
     return sub_key
@@ -289,11 +284,10 @@ def _custom_objects(
   """Returns list of (module, class_name) tuples for custom objects."""
   custom_objects = []
   for metric_list in metrics.values():
-    for metric in metric_list:
-      if (metric.__class__.__module__ != tf.keras.metrics.__name__ and
-          metric.__class__.__module__ != tf.keras.losses.__name__):
-        custom_objects.append(
-            (metric.__class__.__module__, metric.__class__.__name__))
+    custom_objects.extend(
+        (metric.__class__.__module__, metric.__class__.__name__)
+        for metric in metric_list if metric.__class__.__module__ not in
+        [tf.keras.metrics.__name__, tf.keras.losses.__name__])
   return custom_objects
 
 
@@ -335,7 +329,7 @@ def _wrap_confusion_matrix_metric(
             'the label_weights settings in the AUC class or remove the '
             'class_weights from the AggregationOptions: metric={}, '
             'class_weights={}'.format(metric, class_weights))
-      class_weights = {i: v for i, v in enumerate(metric.label_weights)}
+      class_weights = dict(enumerate(metric.label_weights))
     if metric.multi_label:
       raise NotImplementedError('AUC.multi_label=True is not implemented yet.')
 
@@ -381,15 +375,20 @@ def _wrap_confusion_matrix_metric(
   matrices_key = computations[-1].keys[-1]
 
   def result(
-      metrics: Dict[metric_types.MetricKey, Any]
-  ) -> Dict[metric_types.MetricKey, Any]:
+        metrics: Dict[metric_types.MetricKey, Any]
+    ) -> Dict[metric_types.MetricKey, Any]:
     """Returns result derived from binary confusion matrices."""
     matrices = metrics[matrices_key]
 
     metric = tf.keras.metrics.deserialize(metric_config)
-    if (isinstance(metric, tf.keras.metrics.AUC) or
-        isinstance(metric, tf.keras.metrics.SpecificityAtSensitivity) or
-        isinstance(metric, tf.keras.metrics.SensitivityAtSpecificity)):
+    if isinstance(
+        metric,
+        (
+            tf.keras.metrics.AUC,
+            tf.keras.metrics.SpecificityAtSensitivity,
+            tf.keras.metrics.SensitivityAtSpecificity,
+        ),
+    ):
       metric.true_positives.assign(np.array(matrices.tp))
       metric.true_negatives.assign(np.array(matrices.tn))
       metric.false_positives.assign(np.array(matrices.fp))

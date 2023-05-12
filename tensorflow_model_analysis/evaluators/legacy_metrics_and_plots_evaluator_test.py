@@ -38,11 +38,9 @@ def _addExampleCountMetricCallback(  # pylint: disable=invalid-name
     features_dict, predictions_dict, labels_dict):
   del features_dict
   del labels_dict
-  metric_ops = {}
   value_op, update_op = metric_fns.total(
       tf.shape(input=predictions_dict['logits'])[0])
-  metric_ops['added_example_count'] = (value_op, update_op)
-  return metric_ops
+  return {'added_example_count': (value_op, update_op)}
 
 
 def _addPyFuncMetricCallback(  # pylint: disable=invalid-name
@@ -114,7 +112,7 @@ class EvaluateMetricsAndPlotsTest(testutil.TensorflowModelAnalysisTest):
 
       def check_result(got):
         try:
-          self.assertEqual(1, len(got), 'got: %s' % got)
+          self.assertEqual(1, len(got), f'got: {got}')
           (slice_key, value) = got[0]
           self.assertEqual((), slice_key)
           self.assertDictElementsAlmostEqual(
@@ -177,7 +175,7 @@ class EvaluateMetricsAndPlotsTest(testutil.TensorflowModelAnalysisTest):
 
         def check_result(got):
           try:
-            self.assertEqual(3, len(got), 'got: %s' % got)
+            self.assertEqual(3, len(got), f'got: {got}')
             slices = {}
             for slice_key, value in got:
               slices[slice_key] = value
@@ -268,7 +266,7 @@ class EvaluateMetricsAndPlotsTest(testutil.TensorflowModelAnalysisTest):
 
         def check_result(got):
           try:
-            self.assertEqual(3, len(got), 'got: %s' % got)
+            self.assertEqual(3, len(got), f'got: {got}')
             slices = {}
             for slice_key, value in got:
               slices[slice_key] = value
@@ -351,7 +349,7 @@ class EvaluateMetricsAndPlotsTest(testutil.TensorflowModelAnalysisTest):
 
       def check_result(got):
         try:
-          self.assertEqual(1, len(got), 'got: %s' % got)
+          self.assertEqual(1, len(got), f'got: {got}')
           (slice_key, value) = got[0]
           self.assertEqual((), slice_key)
           self.assertDictElementsAlmostEqual(
@@ -408,7 +406,7 @@ class EvaluateMetricsAndPlotsTest(testutil.TensorflowModelAnalysisTest):
 
       def check_result(got):
         try:
-          self.assertEqual(1, len(got), 'got: %s' % got)
+          self.assertEqual(1, len(got), f'got: {got}')
           (slice_key, value) = got[0]
           self.assertEqual((), slice_key)
           self.assertDictElementsAlmostEqual(
@@ -461,7 +459,7 @@ class EvaluateMetricsAndPlotsTest(testutil.TensorflowModelAnalysisTest):
 
       def check_metrics(got):
         try:
-          self.assertEqual(1, len(got), 'got: %s' % got)
+          self.assertEqual(1, len(got), f'got: {got}')
           (slice_key, value) = got[0]
           self.assertEqual((), slice_key)
           self.assertDictElementsAlmostEqual(
@@ -476,7 +474,7 @@ class EvaluateMetricsAndPlotsTest(testutil.TensorflowModelAnalysisTest):
 
       def check_plots(got):
         try:
-          self.assertEqual(1, len(got), 'got: %s' % got)
+          self.assertEqual(1, len(got), f'got: {got}')
           (slice_key, value) = got[0]
           self.assertEqual((), slice_key)
           self.assertDictMatrixRowsAlmostEqual(

@@ -250,17 +250,12 @@ class _MultiClassConfusionMatrixCombiner(beam.CombineFn):
             flatten=False,
             require_single_example_weight=True))  # pytype: disable=wrong-arg-types
     if not label.shape:
-      raise ValueError(
-          'Label missing from example: StandardMetricInputs={}'.format(element))
+      raise ValueError(f'Label missing from example: StandardMetricInputs={element}')
     if predictions.shape in ((), (1,)):
       raise ValueError(
-          'Predictions shape must be > 1 for multi-class confusion matrix: '
-          'shape={}, StandardMetricInputs={}'.format(predictions.shape,
-                                                     element))
-    if label.size > 1:
-      actual_class_id = np.argmax(label)
-    else:
-      actual_class_id = int(label)
+          f'Predictions shape must be > 1 for multi-class confusion matrix: shape={predictions.shape}, StandardMetricInputs={element}'
+      )
+    actual_class_id = np.argmax(label) if label.size > 1 else int(label)
     predicted_class_id = np.argmax(predictions)
     example_weight = float(example_weight)
     for threshold in self._thresholds:

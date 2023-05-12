@@ -70,10 +70,10 @@ def extract_signature_inputs_or_outputs_with_prefix(
   Raises:
     ValueError: There were duplicate keys.
   """
-  matched_prefix = False
   result = {}
+  matched_prefix = False
   for k, v in signature_inputs_or_outputs.items():
-    if k.startswith(prefix + '/'):
+    if k.startswith(f'{prefix}/'):
       key = k[len(prefix) + 1:]
     elif k.startswith(prefix):
       if k == prefix:
@@ -84,9 +84,8 @@ def extract_signature_inputs_or_outputs_with_prefix(
 
     if key in result:
       raise ValueError(
-          'key "%s" already in dictionary. you might have repeated keys. '
-          'prefix was "%s", signature_def values were: %s' %
-          (prefix, key, signature_inputs_or_outputs))
+          f'key "{prefix}" already in dictionary. you might have repeated keys. prefix was "{key}", signature_def values were: {signature_inputs_or_outputs}'
+      )
     result[key] = v
 
   if key_if_single_element and matched_prefix and len(result) == 1:
@@ -178,8 +177,7 @@ def load_tfma_version(
     ValueError: If version not found signature_def.inputs.
   """
   if constants.SIGNATURE_DEF_TFMA_VERSION_KEY not in signature_def.inputs:
-    raise ValueError('tfma version not found in signature_def: %s' %
-                     signature_def)
+    raise ValueError(f'tfma version not found in signature_def: {signature_def}')
   return tf.compat.v1.saved_model.utils.get_tensor_from_tensor_info(
       signature_def.inputs[constants.SIGNATURE_DEF_TFMA_VERSION_KEY], graph)
 
@@ -203,7 +201,7 @@ def load_inputs(
   inputs = extract_signature_inputs_or_outputs_with_prefix(
       constants.SIGNATURE_DEF_INPUTS_PREFIX, signature_def.inputs)
   if not inputs:
-    raise ValueError('no inputs found in signature_def: %s' % signature_def)
+    raise ValueError(f'no inputs found in signature_def: {signature_def}')
   inputs_map = collections.OrderedDict()
   # Sort by key name so stable ordering is used when passing to feed_list.
   for k in sorted(inputs.keys()):
@@ -211,7 +209,7 @@ def load_inputs(
         inputs[k], graph)
 
   if constants.SIGNATURE_DEF_INPUT_REFS_KEY not in signature_def.inputs:
-    raise ValueError('no input_refs found in signature_def: %s' % signature_def)
+    raise ValueError(f'no input_refs found in signature_def: {signature_def}')
   input_refs_node = tf.compat.v1.saved_model.utils.get_tensor_from_tensor_info(
       signature_def.inputs[constants.SIGNATURE_DEF_INPUT_REFS_KEY], graph)
   return (inputs_map, input_refs_node)
@@ -305,14 +303,14 @@ def load_metrics(
   for k, v in metrics.items():
     node = tf.compat.v1.saved_model.utils.get_tensor_from_tensor_info(v, graph)
 
-    if k.endswith('/' + constants.METRIC_VALUE_SUFFIX):
+    if k.endswith(f'/{constants.METRIC_VALUE_SUFFIX}'):
       key = k[:-len(constants.METRIC_VALUE_SUFFIX) - 1]
       metrics_map[key][encoding.VALUE_OP_SUFFIX] = node
-    elif k.endswith('/' + constants.METRIC_UPDATE_SUFFIX):
+    elif k.endswith(f'/{constants.METRIC_UPDATE_SUFFIX}'):
       key = k[:-len(constants.METRIC_UPDATE_SUFFIX) - 1]
       metrics_map[key][encoding.UPDATE_OP_SUFFIX] = node
     else:
-      raise ValueError('unrecognised suffix for metric. key was: %s' % k)
+      raise ValueError(f'unrecognised suffix for metric. key was: {k}')
   return metrics_map
 
 
@@ -378,14 +376,14 @@ def get_node_map(
           getattr(collection_def, collection_def.WhichOneof('kind')).value)
   keys = meta_graph_def.collection_def[encoding.with_suffix(
       prefix, encoding.KEY_SUFFIX)].bytes_list.value
-  if not all([len(node_list) == len(keys) for node_list in node_lists]):
-    raise ValueError('length of each node_list should match length of keys. '
-                     'prefix was %s, node_lists were %s, keys was %s' %
-                     (prefix, node_lists, keys))
-  result = {}
-  for key, elems in zip(keys, zip(*node_lists)):
-    result[encoding.decode_key(key)] = dict(zip(node_suffixes, elems))
-  return result
+  if any(len(node_list) != len(keys) for node_list in node_lists):
+    raise ValueError(
+        f'length of each node_list should match length of keys. prefix was {prefix}, node_lists were {node_lists}, keys was {keys}'
+    )
+  return {
+      encoding.decode_key(key): dict(zip(node_suffixes, elems))
+      for key, elems in zip(keys, zip(*node_lists))
+  }
 
 
 def get_node_map_in_graph(
@@ -408,12 +406,12 @@ def get_node_map_in_graph(
     the actual nodes in the graph.
   """
   node_map = get_node_map(meta_graph_def, prefix, node_suffixes)
-  result = {}
-  for key, elems in node_map.items():
-    result[key] = {
-        k: encoding.decode_tensor_node(graph, n) for k, n in elems.items()
-    }
-  return result
+  return {
+      key:
+      {k: encoding.decode_tensor_node(graph, n)
+       for k, n in elems.items()}
+      for key, elems in node_map.items()
+  }
 
 
 def get_node_wrapped_tensor_info(meta_graph_def: meta_graph_pb2.MetaGraphDef,
@@ -438,8 +436,8 @@ def get_node_wrapped_tensor_info(meta_graph_def: meta_graph_pb2.MetaGraphDef,
                    'was %s' % (path, meta_graph_def))
   if len(meta_graph_def.collection_def[path].any_list.value) != 1:
     raise ValueError(
-        'any_list should be of length 1. path was %s, any_list was: %s.' %
-        (path, meta_graph_def.collection_def[path].any_list.value))
+        f'any_list should be of length 1. path was {path}, any_list was: {meta_graph_def.collection_def[path].any_list.value}.'
+    )
   return meta_graph_def.collection_def[path].any_list.value[0]
 
 

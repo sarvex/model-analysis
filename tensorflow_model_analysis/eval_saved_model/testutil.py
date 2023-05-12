@@ -48,8 +48,10 @@ class TensorflowModelAnalysisTest(tf.test.TestCase):
 
     self.assertIn(key, d)
     self.assertIsInstance(d[key], types.ValueWithTDistribution)
-    self.assertAlmostEqual(
-        d[key].unsampled_value, value, places=places, msg='key {}'.format(key))
+    self.assertAlmostEqual(d[key].unsampled_value,
+                           value,
+                           places=places,
+                           msg=f'key {key}')
 
   def assertHasKeyWithValueAlmostEqual(self,
                                        d: Dict[str, float],
@@ -57,8 +59,7 @@ class TensorflowModelAnalysisTest(tf.test.TestCase):
                                        value: float,
                                        places: int = 5) -> None:
     self.assertIn(key, d)
-    self.assertAlmostEqual(
-        d[key], value, places=places, msg='key {}'.format(key))
+    self.assertAlmostEqual(d[key], value, places=places, msg=f'key {key}')
 
   def assertDictElementsAlmostEqual(self,
                                     got_values_dict: Dict[str, float],
@@ -119,18 +120,18 @@ class TensorflowModelAnalysisTest(tf.test.TestCase):
                                 msg_prefix='') -> None:
     got = list(got_seq)
     expected = list(expected_seq)
-    self.assertEqual(
-        len(got), len(expected), msg=msg_prefix + 'lengths do not match')
+    self.assertEqual(len(got),
+                     len(expected),
+                     msg=f'{msg_prefix}lengths do not match')
     for index, (a, b) in enumerate(zip(got, expected)):
       msg = msg_prefix + 'at index %d. sequences were: %s and %s' % (index, got,
                                                                      expected)
       if math.isnan(a) or math.isnan(b):
         self.assertEqual(math.isnan(a), math.isnan(b), msg=msg)
+      elif delta:
+        self.assertAlmostEqual(a, b, msg=msg, delta=delta)
       else:
-        if delta:
-          self.assertAlmostEqual(a, b, msg=msg, delta=delta)
-        else:
-          self.assertAlmostEqual(a, b, msg=msg, places=places)
+        self.assertAlmostEqual(a, b, msg=msg, places=places)
 
   def assertSparseTensorValueEqual(
       self, expected_sparse_tensor_value: Union[types.SparseTensorValue,

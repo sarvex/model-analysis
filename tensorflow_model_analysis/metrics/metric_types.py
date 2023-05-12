@@ -52,14 +52,14 @@ class SubKey(
               class_id: Optional[int] = None,
               k: Optional[int] = None,
               top_k: Optional[int] = None):
-    if sum([0 if v is None else 1 for v in (class_id, k, top_k)]) > 1:
-      raise ValueError('only one of class_id, k, or top_k should be used: '
-                       'class_id={}, k={}, top_k={}'.format(class_id, k, top_k))
-    if k is not None and k < 1:
-      raise ValueError('attempt to create metric with k < 1: k={}'.format(k))
-    if top_k is not None and top_k < 1:
+    if sum(0 if v is None else 1 for v in (class_id, k, top_k)) > 1:
       raise ValueError(
-          'attempt to create metric with top_k < 1: top_k={}'.format(top_k))
+          f'only one of class_id, k, or top_k should be used: class_id={class_id}, k={k}, top_k={top_k}'
+      )
+    if k is not None and k < 1:
+      raise ValueError(f'attempt to create metric with k < 1: k={k}')
+    if top_k is not None and top_k < 1:
+      raise ValueError(f'attempt to create metric with top_k < 1: top_k={top_k}')
     return super(SubKey, cls).__new__(cls, class_id, k, top_k)
 
   # ThenChange(../api/model_eval_lib.py)
@@ -77,11 +77,11 @@ class SubKey(
 
   def __str__(self) -> str:
     if self.class_id is not None:
-      return 'classId:' + str(self.class_id)
+      return f'classId:{str(self.class_id)}'
     elif self.k is not None:
-      return 'k:' + str(self.k)
+      return f'k:{str(self.k)}'
     elif self.top_k is not None:
-      return 'topK:' + str(self.top_k)
+      return f'topK:{str(self.top_k)}'
     else:
       raise NotImplementedError(
           ('A non-existent SubKey should be represented as None, not as ',
@@ -101,15 +101,9 @@ class SubKey(
   @staticmethod
   def from_proto(pb: metrics_for_slice_pb2.SubKey) -> Optional['SubKey']:
     """Creates class from proto."""
-    class_id = None
-    if pb.HasField('class_id'):
-      class_id = pb.class_id.value
-    k = None
-    if pb.HasField('k'):
-      k = pb.k.value
-    top_k = None
-    if pb.HasField('top_k'):
-      top_k = pb.top_k.value
+    class_id = pb.class_id.value if pb.HasField('class_id') else None
+    k = pb.k.value if pb.HasField('k') else None
+    top_k = pb.top_k.value if pb.HasField('top_k') else None
     if class_id is None and k is None and top_k is None:
       return None
     else:
@@ -144,10 +138,8 @@ class AggregationType(
         weighted_macro_average or False
     ]) > 1:
       raise ValueError(
-          'only one of micro_average, macro_average, or '
-          'weighted_macro_average should be set: micro_average={}, '
-          'macro_average={}, weighted_macro_average={}'.format(
-              micro_average, macro_average, weighted_macro_average))
+          f'only one of micro_average, macro_average, or weighted_macro_average should be set: micro_average={micro_average}, macro_average={macro_average}, weighted_macro_average={weighted_macro_average}'
+      )
     return super(AggregationType,
                  cls).__new__(cls, micro_average, macro_average,
                               weighted_macro_average)
@@ -862,10 +854,7 @@ def FeaturePreprocessor(  # pylint: disable=invalid-name
     output_names: Optional output names. Only used if include_default_inputs is
       True. If unset all outputs will be included with the default inputs.
   """
-  if feature_keys:
-    include_features = {k: {} for k in feature_keys}
-  else:
-    include_features = {}
+  include_features = {k: {} for k in feature_keys} if feature_keys else {}
   return StandardMetricInputsPreprocessor(
       include_filter={constants.FEATURES_KEY: include_features},
       include_default_inputs=include_default_inputs,
@@ -890,10 +879,7 @@ def TransformedFeaturePreprocessor(  # pylint: disable=invalid-name
     output_names: Optional output names. Only used if include_default_inputs is
       True. If unset all outputs will be included with the default inputs.
   """
-  if feature_keys:
-    include_features = {k: {} for k in feature_keys}
-  else:
-    include_features = {}
+  include_features = {k: {} for k in feature_keys} if feature_keys else {}
   if model_names:
     include_features = {name: include_features for name in model_names}
   return StandardMetricInputsPreprocessor(
@@ -919,10 +905,7 @@ def AttributionPreprocessor(  # pylint: disable=invalid-name
     model_names: Optional model names (required for multi-model evaluations).
     output_names: Optional output names (required for multi-output evaluations).
   """
-  if feature_keys:
-    include_features = {k: {} for k in feature_keys}
-  else:
-    include_features = {}
+  include_features = {k: {} for k in feature_keys} if feature_keys else {}
   if output_names:
     include_features = {name: include_features for name in output_names}
   if model_names:

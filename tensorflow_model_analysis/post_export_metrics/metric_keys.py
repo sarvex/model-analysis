@@ -25,7 +25,7 @@ DEFAULT_PREFIX = 'post_export_metrics'
 
 def base_key(suffix: str, prefix: Optional[str] = DEFAULT_PREFIX) -> str:
   """Creates a base key from a prefix and a suffix."""
-  return '%s/%s' % (prefix, suffix)
+  return f'{prefix}/{suffix}'
 
 
 def tagged_key(key: str, tag: str) -> str:
@@ -42,18 +42,18 @@ def tagged_key(key: str, tag: str) -> str:
   """
   parts = key.split('/')
   if len(parts) > 1:
-    return '%s/%s/%s' % (parts[0], tag, '/'.join(parts[1:]))
-  return '%s/%s' % (key, tag)
+    return f"{parts[0]}/{tag}/{'/'.join(parts[1:])}"
+  return f'{key}/{tag}'
 
 
 def upper_bound_key(key: str) -> str:
   """Creates an upper_bound key from a child key."""
-  return key + '/upper_bound'
+  return f'{key}/upper_bound'
 
 
 def lower_bound_key(key: str) -> str:
   """Create a lower_bound key from a child key."""
-  return key + '/lower_bound'
+  return f'{key}/lower_bound'
 
 
 # Not actually for any metric, just used for communicating errors.
@@ -101,9 +101,4 @@ _PLOT_SUFFIXES = [
 
 def is_plot_key(key: str) -> bool:
   """Returns true if key is a plot key."""
-  # We need to check for suffixes here because metrics may have prefixes based
-  # on multiple labels and/or heads.
-  for suffix in _PLOT_SUFFIXES:
-    if key.endswith(suffix):
-      return True
-  return False
+  return any(key.endswith(suffix) for suffix in _PLOT_SUFFIXES)

@@ -110,8 +110,8 @@ def macro_average(
       example_weighted=example_weighted)
 
   def result(
-      metrics: Dict[metric_types.MetricKey, float]
-  ) -> Dict[metric_types.MetricKey, float]:
+        metrics: Dict[metric_types.MetricKey, float]
+    ) -> Dict[metric_types.MetricKey, float]:
     """Returns macro average."""
     total_value = 0.0
     total_weight = 0.0
@@ -125,11 +125,12 @@ def macro_average(
       if child_key not in metrics:
         # Use private name if not found under metric name
         child_key = metric_types.MetricKey(
-            name='_' + metric_name,
+            name=f'_{metric_name}',
             model_name=model_name,
             output_name=output_name,
             sub_key=sub_key,
-            example_weighted=example_weighted)
+            example_weighted=example_weighted,
+        )
       weight = 1.0 if not class_weights else 0.0
       offset = None
       if (child_key.sub_key is not None and
@@ -200,8 +201,8 @@ def weighted_macro_average(
   class_weights_from_labels_key = computations[0].keys[0]
 
   def result(
-      metrics: Dict[metric_types.MetricKey, Any]
-  ) -> Dict[metric_types.MetricKey, float]:
+        metrics: Dict[metric_types.MetricKey, Any]
+    ) -> Dict[metric_types.MetricKey, float]:
     """Returns weighted macro average."""
     class_weights_from_labels = metrics[class_weights_from_labels_key]
     total_value = 0.0
@@ -216,11 +217,12 @@ def weighted_macro_average(
       if child_key not in metrics:
         # Use private name if not found under metric name
         child_key = metric_types.MetricKey(
-            name='_' + metric_name,
+            name=f'_{metric_name}',
             model_name=model_name,
             output_name=output_name,
             sub_key=sub_key,
-            example_weighted=example_weighted)
+            example_weighted=example_weighted,
+        )
       weight = 1.0 if not class_weights else 0.0
       offset = None
       if (child_key.sub_key is not None and
@@ -250,9 +252,8 @@ def _to_float(value: Any) -> float:
     return float(value)
   except (ValueError, TypeError):
     raise ValueError(
-        '{} is not aggregatable: value={}\n\nThis is most likely caused by a '
-        'configuration error in which the aggregate option was applied '
-        'incorrectly.'.format(value.__class__.__name__, value))
+        f'{value.__class__.__name__} is not aggregatable: value={value}\n\nThis is most likely caused by a configuration error in which the aggregate option was applied incorrectly.'
+    )
 
 
 def _class_weights_from_labels(
@@ -315,17 +316,16 @@ class _ClassWeightsFromLabelsCombiner(beam.CombineFn):
             flatten=False,
             allow_none=True,
             require_single_example_weight=True)):
-      example_weight = float(example_weight)
       if label is not None:
+        example_weight = float(example_weight)
         for class_id in self._class_ids:
           if label.size == 1:
             label_value = float(label.item() == class_id)
+          elif class_id >= len(label):
+            raise ValueError(
+                f'class_id {class_id} used with weighted_macro_average is outside the range of the label provided: label={label}, StandardMetricInput={element}'
+            )
           else:
-            if class_id >= len(label):
-              raise ValueError(
-                  'class_id {} used with weighted_macro_average is outside the '
-                  'range of the label provided: label={}, '
-                  'StandardMetricInput={}'.format(class_id, label, element))
             label_value = float(label[class_id])
           accumulator[class_id] += label_value * example_weight
     return accumulator
@@ -342,7 +342,7 @@ class _ClassWeightsFromLabelsCombiner(beam.CombineFn):
   def extract_output(
       self, accumulator: Dict[int, float]
   ) -> Dict[metric_types.MetricKey, Dict[int, float]]:
-    total = sum(v for v in accumulator.values())
+    total = sum(accumulator.values())
     class_weights = {
         k: (v / total) if total else 0.0 for k, v in accumulator.items()
     }

@@ -173,12 +173,11 @@ class EvalMetricsGraph:  # pytype: disable=ignored-metaclass
       for add_metrics_callback in add_metrics_callbacks:
         new_metric_ops = add_metrics_callback(features_dict, predictions_dict,
                                               labels_dict)
-        overlap = set(new_metric_ops.keys()) & set(metric_ops.keys())
-        if overlap:
-          raise ValueError('metric keys should not conflict, but an '
-                           'earlier callback already added the metrics '
-                           'named %s' % overlap)
-        metric_ops.update(new_metric_ops)
+        if overlap := set(new_metric_ops.keys()) & set(metric_ops.keys()):
+          raise ValueError(
+              f'metric keys should not conflict, but an earlier callback already added the metrics named {overlap}'
+          )
+        metric_ops |= new_metric_ops
       self.register_additional_metric_ops(metric_ops)
 
   def graph_as_default(self):
@@ -288,22 +287,15 @@ class EvalMetricsGraph:  # pytype: disable=ignored-metaclass
     Returns:
       Tuple of features, predictions, labels dictionaries (or values).
     """
-    features = {}
-    for key, value in self._features_map.items():
-      features[key] = value
-
-    predictions = {}
-    for key, value in self._predictions_map.items():
-      predictions[key] = value
+    features = dict(self._features_map.items())
+    predictions = dict(self._predictions_map.items())
     # Unnest if it wasn't a dictionary to begin with.
     default_predictions_key = util.default_dict_key(
         eval_constants.PREDICTIONS_NAME)
     if list(predictions.keys()) == [default_predictions_key]:
       predictions = predictions[default_predictions_key]
 
-    labels = {}
-    for key, value in self._labels_map.items():
-      labels[key] = value
+    labels = dict(self._labels_map.items())
     # Unnest if it wasn't a dictionary to begin with.
     default_labels_key = util.default_dict_key(eval_constants.LABELS_NAME)
     if list(labels.keys()) == [default_labels_key]:
@@ -318,8 +310,7 @@ class EvalMetricsGraph:  # pytype: disable=ignored-metaclass
 
     except (RuntimeError, TypeError, ValueError,
             tf.errors.OpError) as exception:
-      general_util.reraise_augmented(exception,
-                                     'raw_input = %s' % examples_list)
+      general_util.reraise_augmented(exception, f'raw_input = {examples_list}')
 
   def metrics_reset_update_get(
       self, features_predictions_labels: types.FeaturesPredictionsLabels
@@ -374,11 +365,7 @@ class EvalMetricsGraph:  # pytype: disable=ignored-metaclass
       A feed dict for feeding metric variables values to the placeholders
       constructed for setting the metric variable values to the fed values.
     """
-    result = {}
-    for node, value in zip(self._metric_variable_placeholders,
-                           metric_variable_values):
-      result[node] = value
-    return result
+    return dict(zip(self._metric_variable_placeholders, metric_variable_values))
 
   def _set_metric_variables(self, metric_variable_values: List[Any]) -> None:
     # Lock should be acquired before calling this function.

@@ -95,9 +95,7 @@ def pad(arr: np.ndarray, last_dim: int, value: float) -> np.ndarray:
   """Pads the given array with value until last dim is of size last_dim."""
   if arr.shape[-1] == last_dim:
     return arr
-  pad_width = []
-  for _ in arr.shape[:-1]:
-    pad_width.append((0, 0))  # Don't pad inner dimensions
+  pad_width = [(0, 0) for _ in arr.shape[:-1]]
   pad_width.append((0, last_dim - arr.shape[-1]))  # Pad up to last_dim
   return np.pad(
       arr, pad_width=pad_width, mode='constant', constant_values=value)
@@ -201,7 +199,7 @@ def top_k_indices(
     return np.arange(indices.shape[0]).repeat(top_k), indices.flatten()
   else:
     raise NotImplementedError(
-        'top_k not supported for shapes > 2: scores = {}'.format(scores))
+        f'top_k not supported for shapes > 2: scores = {scores}')
 
 
 def select_indices(
@@ -229,11 +227,11 @@ def select_indices(
     # the number of rows tells us the number of columns we are returning (i.e.
     # the size of the last dim).
     last_dim = int(len(indices[0]) / arr.shape[0])
-    values = values.reshape(arr.shape[:-1] + (last_dim,))
-    return values
+    return values.reshape(arr.shape[:-1] + (last_dim,))
   else:
-    raise NotImplementedError('select_indices not supported for shapes > 2: '
-                              'arr={}, indices={}'.format(arr, indices))
+    raise NotImplementedError(
+        f'select_indices not supported for shapes > 2: arr={arr}, indices={indices}'
+    )
 
 
 def to_label_prediction_example_weight(
@@ -559,14 +557,12 @@ def to_label_prediction_example_weight(
 
     for result in yield_results(label, prediction, example_weight):
       if fractional_labels and label.size:
-        for new_result in _yield_fractional_labels(*result):
-          yield new_result
+        yield from _yield_fractional_labels(*result)
       else:
         yield result
   except Exception as e:
     import sys  # pylint: disable=g-import-not-at-top
-    raise type(e)(str(e) + f'\n\n{fn_call_str()}').with_traceback(
-        sys.exc_info()[2])
+    raise type(e)(f'{str(e)}\n\n{fn_call_str()}').with_traceback(sys.exc_info()[2])
 
 
 def _yield_fractional_labels(
@@ -688,8 +684,8 @@ def prepare_labels_and_predictions(
     predictions = util.to_numpy(predictions)
 
   if labels is not None:
-    if (isinstance(labels, types.SparseTensorValue) or
-        isinstance(labels, tf.compat.v1.SparseTensorValue)):
+    if isinstance(labels,
+                  (types.SparseTensorValue, tf.compat.v1.SparseTensorValue)):
       if predictions is None or predictions.size == 0:
         raise ValueError('predictions must also be used if labels are of type '
                          f'SparseTensorValue: labels={labels}')

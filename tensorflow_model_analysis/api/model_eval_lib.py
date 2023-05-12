@@ -131,9 +131,7 @@ def _default_eval_config(eval_shared_models: List[types.EvalSharedModel],
             name=shared_model.model_name,
             example_weight_key=example_weight_key,
             example_weight_keys=example_weight_keys))
-  slicing_specs = None
-  if slice_spec:
-    slicing_specs = [s.to_proto() for s in slice_spec]
+  slicing_specs = [s.to_proto() for s in slice_spec] if slice_spec else None
   options = config_pb2.Options()
   options.compute_confidence_intervals.value = compute_confidence_intervals
   options.min_slice_size.value = min_slice_size
@@ -147,12 +145,11 @@ def _model_types(
     eval_shared_model: Optional[types.MaybeMultipleEvalSharedModels]
 ) -> Optional[Set[str]]:
   """Returns model types associated with given EvalSharedModels."""
-  eval_shared_models = model_util.verify_and_update_eval_shared_models(
-      eval_shared_model)
-  if not eval_shared_models:
-    return None
+  if eval_shared_models := model_util.verify_and_update_eval_shared_models(
+      eval_shared_model):
+    return {m.model_type for m in eval_shared_models}
   else:
-    return set([m.model_type for m in eval_shared_models])
+    return None
 
 
 def _update_eval_config_with_defaults(
@@ -175,9 +172,8 @@ MetricsForSlice = metrics_for_slice_pb2.MetricsForSlice
 def load_metrics(output_path: str,
                  output_file_format: str = '') -> Iterator[MetricsForSlice]:
   """Read and deserialize the MetricsForSlice records."""
-  for m in metrics_plots_and_validations_writer.load_and_deserialize_metrics(
-      output_path, output_file_format):
-    yield m
+  yield from metrics_plots_and_validations_writer.load_and_deserialize_metrics(
+      output_path, output_file_format)
 
 
 PlotsForSlice = metrics_for_slice_pb2.PlotsForSlice
@@ -186,9 +182,8 @@ PlotsForSlice = metrics_for_slice_pb2.PlotsForSlice
 def load_plots(output_path: str,
                output_file_format: str = '') -> Iterator[PlotsForSlice]:
   """Read and deserialize the PlotsForSlice records."""
-  for p in metrics_plots_and_validations_writer.load_and_deserialize_plots(
-      output_path, output_file_format):
-    yield p
+  yield from metrics_plots_and_validations_writer.load_and_deserialize_plots(
+      output_path, output_file_format)
 
 
 AttributionsForSlice = metrics_for_slice_pb2.AttributionsForSlice
@@ -198,10 +193,9 @@ def load_attributions(
     output_path: str,
     output_file_format: str = '') -> Iterator[AttributionsForSlice]:
   """Read and deserialize the AttributionsForSlice records."""
-  for a in (
+  yield from (
       metrics_plots_and_validations_writer.load_and_deserialize_attributions(
-          output_path, output_file_format)):
-    yield a
+          output_path, output_file_format))
 
 
 # Define types here to avoid type errors between OSS and internal code.
@@ -371,8 +365,9 @@ def default_eval_shared_model(
   else:
     model_spec = model_util.get_model_spec(eval_config, model_name)
     if not model_spec:
-      raise ValueError('ModelSpec for model name {} not found in EvalConfig: '
-                       'config={}'.format(model_name, eval_config))
+      raise ValueError(
+          f'ModelSpec for model name {model_name} not found in EvalConfig: config={eval_config}'
+      )
     is_baseline = model_spec.is_baseline
     model_type = model_util.get_model_type(model_spec, eval_saved_model_path,
                                            tags)
@@ -502,10 +497,9 @@ def default_extractors(  # pylint: disable=invalid-name
     if (not model_types.issubset(constants.VALID_TF_MODEL_TYPES) and
         not custom_predict_extractor):
       raise NotImplementedError(
-          'either a custom_predict_extractor must be used or model type must '
-          'be one of: {}. evalconfig={}'.format(
-              str(constants.VALID_TF_MODEL_TYPES), eval_config))
-    if model_types == set([constants.TF_LITE]):
+          f'either a custom_predict_extractor must be used or model type must be one of: {str(constants.VALID_TF_MODEL_TYPES)}. evalconfig={eval_config}'
+      )
+    if model_types == {constants.TF_LITE}:
       # TODO(b/163889779): Convert TFLite extractor to operate on batched
       # extracts. Then we can remove the input extractor.
       return [
@@ -526,10 +520,10 @@ def default_extractors(  # pylint: disable=invalid-name
       ]
     elif constants.TF_LITE in model_types:
       raise NotImplementedError(
-          'support for mixing tf_lite and non-tf_lite models is not '
-          'implemented: eval_config={}'.format(eval_config))
+          f'support for mixing tf_lite and non-tf_lite models is not implemented: eval_config={eval_config}'
+      )
 
-    if model_types == set([constants.TF_JS]):
+    if model_types == {constants.TF_JS}:
       return [
           features_extractor.FeaturesExtractor(eval_config=eval_config),
           labels_extractor.LabelsExtractor(eval_config=eval_config),
@@ -544,12 +538,12 @@ def default_extractors(  # pylint: disable=invalid-name
       ]
     elif constants.TF_JS in model_types:
       raise NotImplementedError(
-          'support for mixing tf_js and non-tf_js models is not '
-          'implemented: eval_config={}'.format(eval_config))
+          f'support for mixing tf_js and non-tf_js models is not implemented: eval_config={eval_config}'
+      )
 
-    elif (eval_config and model_types == set([constants.TF_ESTIMATOR]) and
-          all(eval_constants.EVAL_TAG in m.model_loader.tags
-              for m in eval_shared_models)):
+    elif (eval_config and model_types == {constants.TF_ESTIMATOR}
+          and all(eval_constants.EVAL_TAG in m.model_loader.tags
+                  for m in eval_shared_models)):
       return [
           custom_predict_extractor or legacy_predict_extractor.PredictExtractor(
               eval_shared_model,
@@ -563,8 +557,8 @@ def default_extractors(  # pylint: disable=invalid-name
           any(eval_constants.EVAL_TAG in m.model_loader.tags
               for m in eval_shared_models)):
       raise NotImplementedError(
-          'support for mixing eval and non-eval estimator models is not '
-          'implemented: eval_config={}'.format(eval_config))
+          f'support for mixing eval and non-eval estimator models is not implemented: eval_config={eval_config}'
+      )
     else:
       extractors = [
           features_extractor.FeaturesExtractor(eval_config=eval_config)
@@ -642,44 +636,27 @@ def default_evaluators(  # pylint: disable=invalid-name
     eval_config = _update_eval_config_with_defaults(eval_config,
                                                     eval_shared_model)
     disabled_outputs = eval_config.options.disabled_outputs.values
-    if (_model_types(eval_shared_model) == set([constants.TF_LITE]) or
-        _model_types(eval_shared_model) == set([constants.TF_JS])):
-      # no in-graph metrics present when tflite or tfjs is used.
-      if eval_shared_model:
-        if isinstance(eval_shared_model, dict):
-          eval_shared_model = {
-              k: v._replace(include_default_metrics=False)
-              for k, v in eval_shared_model.items()
-          }
-        elif isinstance(eval_shared_model, list):
-          eval_shared_model = [
-              v._replace(include_default_metrics=False)
-              for v in eval_shared_model
-          ]
-        else:
-          eval_shared_model = eval_shared_model._replace(
-              include_default_metrics=False)
+    if (_model_types(eval_shared_model) in [{constants.TF_LITE},
+                                            {constants.TF_JS}]
+        and eval_shared_model):
+      if isinstance(eval_shared_model, dict):
+        eval_shared_model = {
+            k: v._replace(include_default_metrics=False)
+            for k, v in eval_shared_model.items()
+        }
+      elif isinstance(eval_shared_model, list):
+        eval_shared_model = [
+            v._replace(include_default_metrics=False)
+            for v in eval_shared_model
+        ]
+      else:
+        eval_shared_model = eval_shared_model._replace(
+            include_default_metrics=False)
   if (constants.METRICS_KEY in disabled_outputs and
       constants.PLOTS_KEY in disabled_outputs and
       constants.ATTRIBUTIONS_KEY in disabled_outputs):
     return []
-  if _is_legacy_eval(config_version, eval_shared_model, eval_config):
-    # Backwards compatibility for previous add_metrics_callbacks implementation.
-    if eval_config is not None:
-      if eval_config.options.HasField('compute_confidence_intervals'):
-        compute_confidence_intervals = (
-            eval_config.options.compute_confidence_intervals.value)
-      if eval_config.options.HasField('min_slice_size'):
-        min_slice_size = eval_config.options.min_slice_size.value
-    return [
-        legacy_metrics_and_plots_evaluator.MetricsAndPlotsEvaluator(
-            eval_shared_model,
-            compute_confidence_intervals=compute_confidence_intervals,
-            min_slice_size=min_slice_size,
-            serialize=serialize,
-            random_seed_for_testing=random_seed_for_testing)
-    ]
-  else:
+  if not _is_legacy_eval(config_version, eval_shared_model, eval_config):
     return [
         metrics_plots_and_validations_evaluator
         .MetricsPlotsAndValidationsEvaluator(
@@ -689,6 +666,21 @@ def default_evaluators(  # pylint: disable=invalid-name
             random_seed_for_testing=random_seed_for_testing,
             tensor_adapter_config=tensor_adapter_config)
     ]
+  # Backwards compatibility for previous add_metrics_callbacks implementation.
+  if eval_config is not None:
+    if eval_config.options.HasField('compute_confidence_intervals'):
+      compute_confidence_intervals = (
+          eval_config.options.compute_confidence_intervals.value)
+    if eval_config.options.HasField('min_slice_size'):
+      min_slice_size = eval_config.options.min_slice_size.value
+  return [
+      legacy_metrics_and_plots_evaluator.MetricsAndPlotsEvaluator(
+          eval_shared_model,
+          compute_confidence_intervals=compute_confidence_intervals,
+          min_slice_size=min_slice_size,
+          serialize=serialize,
+          random_seed_for_testing=random_seed_for_testing)
+  ]
 
 
 def default_writers(
@@ -856,10 +848,8 @@ def ExtractAndEvaluate(  # pylint: disable=invalid-name
     # Note that we assume that if a key is multivalued, its values are
     # dictionaries with disjoint keys. The combined value will simply be the
     # disjoint union of all the dictionaries.
-    result[k] = (
-        v
-        | 'FlattenEvaluationOutput(%s)' % k >> beam.Flatten()
-        | 'CombineEvaluationOutput(%s)' % k >> beam.CombinePerKey(
+    result[k] = (v | f'FlattenEvaluationOutput({k})' >> beam.Flatten()) | (
+        f'CombineEvaluationOutput({k})' >> beam.CombinePerKey(
             _CombineEvaluationDictionariesFn()))
 
   return result
@@ -873,13 +863,11 @@ class _CombineEvaluationDictionariesFn(beam.CombineFn):
 
   def _merge(self, accumulator: Dict[str, Any], output_dict: Dict[str,
                                                                   Any]) -> None:
-    intersection = set(accumulator) & set(output_dict)
-    if intersection:
+    if intersection := set(accumulator) & set(output_dict):
       raise ValueError(
-          'Dictionaries generated by different evaluators should have '
-          'different keys, but keys %s appeared in the output of multiple '
-          'evaluators' % intersection)
-    accumulator.update(output_dict)
+          f'Dictionaries generated by different evaluators should have different keys, but keys {intersection} appeared in the output of multiple evaluators'
+      )
+    accumulator |= output_dict
 
   def add_input(self, accumulator: Dict[str, Any],
                 output_dict: Dict[str, Any]) -> Dict[str, Any]:
@@ -944,9 +932,9 @@ def is_legacy_estimator(
   model_types = _model_types(eval_shared_model)
   eval_shared_models = model_util.verify_and_update_eval_shared_models(
       eval_shared_model)
-  return (model_types == set([constants.TF_ESTIMATOR]) and
-          all(eval_constants.EVAL_TAG in m.model_loader.tags
-              for m in eval_shared_models))
+  return model_types == {constants.TF_ESTIMATOR} and all(
+      eval_constants.EVAL_TAG in m.model_loader.tags
+      for m in eval_shared_models)
 
 
 def is_batched_input(eval_shared_model: Optional[
@@ -1223,7 +1211,17 @@ def run_model_analysis(
 
   tensor_adapter_config = None
   with beam.Pipeline(options=pipeline_options) as p:
-    if file_format == 'tfrecords':
+    if file_format == 'text':
+      tfxio = raw_tf_record.RawBeamRecordTFXIO(
+          physical_format='csv',
+          raw_record_column_name=constants.ARROW_INPUT_COLUMN,
+          telemetry_descriptors=['StandaloneTFMA'])
+      data = (
+          p
+          | 'ReadFromText' >> beam.io.textio.ReadFromText(
+              data_location, coder=beam.coders.BytesCoder())
+          | 'ConvertToArrow' >> tfxio.BeamSource())
+    elif file_format == 'tfrecords':
       if is_batched_input(eval_shared_model, eval_config, config_version):
         if is_legacy_estimator(eval_shared_model):
           tfxio = raw_tf_record.RawTfRecordTFXIO(
@@ -1245,18 +1243,8 @@ def run_model_analysis(
         data = p | 'ReadFromTFRecord' >> beam.io.ReadFromTFRecord(
             file_pattern=data_location,
             compression_type=beam.io.filesystem.CompressionTypes.AUTO)
-    elif file_format == 'text':
-      tfxio = raw_tf_record.RawBeamRecordTFXIO(
-          physical_format='csv',
-          raw_record_column_name=constants.ARROW_INPUT_COLUMN,
-          telemetry_descriptors=['StandaloneTFMA'])
-      data = (
-          p
-          | 'ReadFromText' >> beam.io.textio.ReadFromText(
-              data_location, coder=beam.coders.BytesCoder())
-          | 'ConvertToArrow' >> tfxio.BeamSource())
     else:
-      raise ValueError('unknown file_format: {}'.format(file_format))
+      raise ValueError(f'unknown file_format: {file_format}')
 
     # pylint: disable=no-value-for-parameter
     _ = (
@@ -1274,15 +1262,15 @@ def run_model_analysis(
             tensor_adapter_config=tensor_adapter_config,
             schema=schema,
             config_version=config_version))
-    # pylint: enable=no-value-for-parameter
+      # pylint: enable=no-value-for-parameter
 
   if len(eval_config.model_specs) <= 1:
     return load_eval_result(output_path)
-  else:
-    results = []
-    for spec in eval_config.model_specs:
-      results.append(load_eval_result(output_path, model_name=spec.name))
-    return view_types.EvalResults(results, constants.MODEL_CENTRIC_MODE)
+  results = [
+      load_eval_result(output_path, model_name=spec.name)
+      for spec in eval_config.model_specs
+  ]
+  return view_types.EvalResults(results, constants.MODEL_CENTRIC_MODE)
 
 
 def single_model_analysis(
@@ -1343,9 +1331,10 @@ def multiple_model_analysis(model_locations: List[str], data_location: str,
     A tfma.EvalResults containing all the evaluation results with the same order
     as model_locations.
   """
-  results = []
-  for m in model_locations:
-    results.append(single_model_analysis(m, data_location, **kwargs))
+  results = [
+      single_model_analysis(m, data_location, **kwargs)
+      for m in model_locations
+  ]
   return view_types.EvalResults(results, constants.MODEL_CENTRIC_MODE)
 
 
@@ -1363,9 +1352,10 @@ def multiple_data_analysis(model_location: str, data_locations: List[str],
     A tfma.EvalResults containing all the evaluation results with the same order
     as data_locations.
   """
-  results = []
-  for d in data_locations:
-    results.append(single_model_analysis(model_location, d, **kwargs))
+  results = [
+      single_model_analysis(model_location, d, **kwargs)
+      for d in data_locations
+  ]
   return view_types.EvalResults(results, constants.DATA_CENTRIC_MODE)
 
 
@@ -1453,17 +1443,17 @@ def analyze_raw_data(
     KeyError: If the prediction or label columns are not found within the
       DataFrame.
   """
-  for model_spec in eval_config.model_specs:  # pytype: disable=attribute-error
+  for model_spec in eval_config.model_specs:# pytype: disable=attribute-error
     model_spec.prediction_key = model_spec.prediction_key or 'prediction'
     model_spec.label_key = model_spec.label_key or 'label'
     if model_spec.prediction_key not in data.columns:
       raise KeyError(
-          'The prediction_key column was not found. Looked for %s but found: %s'
-          % (model_spec.prediction_key, list(data.columns)))
+          f'The prediction_key column was not found. Looked for {model_spec.prediction_key} but found: {list(data.columns)}'
+      )
     if model_spec.label_key not in data.columns:
       raise KeyError(
-          'The label_key column was not found. Looked for %s but found: %s' %
-          (model_spec.label_key, list(data.columns)))
+          f'The label_key column was not found. Looked for {model_spec.label_key} but found: {list(data.columns)}'
+      )
 
   # TODO(b/153570803): Validity check / assertions for dataframe structure
   if eval_config.slicing_specs is None:  # pytype: disable=attribute-error

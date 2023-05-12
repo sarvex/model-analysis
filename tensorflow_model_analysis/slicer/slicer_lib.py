@@ -114,7 +114,7 @@ class SingleSliceSpec:
 
     if spec is not None:
       columns = spec.feature_keys
-      features = [(k, v) for k, v in spec.feature_values.items()]
+      features = list(spec.feature_values.items())
 
     features = [(k, _to_type(v)) for (k, v) in features]
 
@@ -136,8 +136,7 @@ class SingleSliceSpec:
     self._value_matches = sorted(self._value_matches)
 
   def __repr__(self):
-    return 'SingleSliceSpec(columns=%s, features=%s)' % (self._columns,
-                                                         self._features)
+    return f'SingleSliceSpec(columns={self._columns}, features={self._features})'
 
   def to_proto(self) -> config_pb2.SlicingSpec:
     feature_values = {k: str(v) for (k, v) in self._features}
@@ -207,14 +206,10 @@ class SingleSliceSpec:
         return
 
       accessor_values = accessor.get(key)
-      if value not in accessor_values:
-        if isinstance(value, str):
-          if value.encode() not in accessor_values:  # For Python3.
-            return
-        # Check that string version of int/float not in values.
-        elif str(value) not in accessor_values:
-          return
-
+      if value not in accessor_values and (
+          isinstance(value, str) and value.encode() not in accessor_values
+          or not isinstance(value, str) and str(value) not in accessor_values):
+        return
     # Get all the column matches (where we're matching only the column).
     #
     # For each column, we generate a List[SingletonSliceKeyType] containing
@@ -236,8 +231,9 @@ class SingleSliceSpec:
           try:
             column_match.append((column, tf.compat.as_text(value)))
           except UnicodeDecodeError as e:
-            raise ValueError('Found non-UTF8 feature value {} in '
-                             'column "{}"'.format(value, column)) from e
+            raise ValueError(
+                f'Found non-UTF8 feature value {value} in column "{column}"'
+            ) from e
         else:
           column_match.append((column, value))
       column_matches.append(column_match)
@@ -275,22 +271,18 @@ def serialize_slice_key(
     elif isinstance(val, float):
       single_slice_key.float_value = val
     else:
-      raise TypeError('unrecognized type of type %s, value %s' %
-                      (type(val), val))
+      raise TypeError(f'unrecognized type of type {type(val)}, value {val}')
 
   return result
 
 
 def _to_type(v: FeatureValueType) -> FeatureValueType:
   """Converts string versions of ints and floats to respective values."""
-  if isinstance(v, float) or isinstance(v, int):
+  if isinstance(v, (float, int)):
     return v
   try:
     v = str(v)
-    if '.' in v:
-      return float(v)
-    else:
-      return int(v)
+    return float(v) if '.' in v else int(v)
   except ValueError:
     return v
 
@@ -328,8 +320,7 @@ def deserialize_slice_key(
     elif elem.HasField('float_value'):
       value = elem.float_value
     else:
-      raise TypeError('unrecognized type of type %s, value %s' %
-                      (type(elem), elem))
+      raise TypeError(f'unrecognized type of type {type(elem)}, value {elem}')
     result.append((elem.column, value))
   return tuple(result)
 
@@ -372,8 +363,7 @@ def get_slices_for_features_dicts(
   """
   accessor = slice_accessor.SliceAccessor(features_dicts, default_features_dict)
   for single_slice_spec in slice_spec:
-    for slice_key in single_slice_spec.generate_slices(accessor):
-      yield slice_key
+    yield from single_slice_spec.generate_slices(accessor)
 
 
 def stringify_slice_key(slice_key: SliceKeyType) -> str:
@@ -422,8 +412,7 @@ def stringify_slice_key(slice_key: SliceKeyType) -> str:
 
   # To use u'{}' instead of '{}' here to avoid encoding a unicode character with
   # ascii codec.
-  return (separator.join([u'{}'.format(key) for key in keys]) + ':' +
-          separator.join([u'{}'.format(value) for value in values]))
+  return f"{separator.join([f'{key}' for key in keys])}:{separator.join([f'{value}' for value in values])}"
 
 
 def is_cross_slice_applicable(
@@ -435,11 +424,10 @@ def is_cross_slice_applicable(
   if not SingleSliceSpec(spec=cross_slicing_spec.baseline_spec
                         ).is_slice_applicable(baseline_slice_key):
     return False
-  for comparison_slicing_spec in cross_slicing_spec.slicing_specs:
-    if SingleSliceSpec(
-        spec=comparison_slicing_spec).is_slice_applicable(comparison_slice_key):
-      return True
-  return False
+  return any(
+      SingleSliceSpec(spec=comparison_slicing_spec).is_slice_applicable(
+          comparison_slice_key)
+      for comparison_slicing_spec in cross_slicing_spec.slicing_specs)
 
 
 def get_slice_key_type(
@@ -458,17 +446,14 @@ def get_slice_key_type(
   """
 
   def is_singleton_slice_key_type(
-      singleton_slice_key: SingletonSliceKeyType) -> bool:
+        singleton_slice_key: SingletonSliceKeyType) -> bool:
     try:
       col, val = singleton_slice_key
     except ValueError:
       return False
-    if (isinstance(col, (bytes, str)) and
-        (isinstance(val, (bytes, str)) or isinstance(val, int) or
-         isinstance(val, float))):
-      return True
-    else:
-      return False
+    return isinstance(col,
+                      (bytes, str)) and (isinstance(val,
+                                                    (bytes, str, int, float)))
 
   def is_slice_key_type(slice_key: SliceKeyType) -> bool:
     if not slice_key:
@@ -506,10 +491,8 @@ def _is_multi_dim_keys(slice_keys: SliceKeyType) -> bool:
   """Returns true if slice_keys are multi dimensional."""
   if isinstance(slice_keys, np.ndarray):
     return True
-  if (isinstance(slice_keys, list) and slice_keys and
-      isinstance(slice_keys[0], list)):
-    return True
-  return False
+  return bool((isinstance(slice_keys, list) and slice_keys
+               and isinstance(slice_keys[0], list)))
 
 
 def slice_key_matches_slice_specs(
@@ -527,10 +510,8 @@ def slice_key_matches_slice_specs(
   Returns:
     True if the slice_key matches any slice specs, False otherwise.
   """
-  for slice_spec in slice_specs:
-    if slice_spec.is_slice_applicable(slice_key):
-      return True
-  return False
+  return any(
+      slice_spec.is_slice_applicable(slice_key) for slice_spec in slice_specs)
 
 
 @beam.typehints.with_input_types(types.Extracts)
@@ -556,9 +537,7 @@ class _FanoutSlicesDoFn(beam.DoFn):
     # We need to flatten and dedup the slice keys.
     if _is_multi_dim_keys(slice_keys):
       arr = np.array(slice_keys)
-      unique_keys = set()
-      for k in arr.flatten():
-        unique_keys.add(k)
+      unique_keys = set(arr.flatten())
       if not unique_keys and arr.shape:
         # If only the empty overall slice is in array, it is removed by flatten
         unique_keys.add(())

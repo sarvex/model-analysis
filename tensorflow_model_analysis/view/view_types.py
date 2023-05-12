@@ -198,10 +198,7 @@ class EvalResult(
       sub_key = ''
 
     def equals_slice_name(slice_key):
-      if not slice_key:
-        return not slice_name
-      else:
-        return slice_key == slice_name
+      return not slice_name if not slice_key else slice_key == slice_name
 
     for slicing_metric in self.slicing_metrics:
       slice_key = slicing_metric[0]
@@ -241,10 +238,7 @@ class EvalResult(
     for slicing_metric in self.slicing_metrics:
       slice_name = slicing_metric[0]
       metrics = slicing_metric[1][output_name][sub_key]
-      sliced_metrics[slice_name] = {
-          metric_name: metric_value
-          for metric_name, metric_value in metrics.items()
-      }
+      sliced_metrics[slice_name] = dict(metrics.items())
     return sliced_metrics  # pytype: disable=bad-return-type
 
   def get_metric_names(self) -> Sequence[str]:
@@ -295,10 +289,7 @@ class EvalResult(
       sub_key = ''
 
     def equals_slice_name(slice_key):
-      if not slice_key:
-        return not slice_name
-      else:
-        return slice_key == slice_name
+      return not slice_name if not slice_key else slice_key == slice_name
 
     for sliced_attributions in self.attributions:
       slice_key = sliced_attributions[0]
@@ -353,8 +344,8 @@ class EvalResult(
       elif len(attributions) == 1:
         attributions = list(attributions.values())[0]
       else:
-        raise ValueError('metric_name must be one of the following: {}'.format(
-            attributions.keys()))
+        raise ValueError(
+            f'metric_name must be one of the following: {attributions.keys()}')
       all_sliced_attributions[slice_name] = copy.copy(attributions)
     return all_sliced_attributions  # pytype: disable=bad-return-type
 
@@ -379,8 +370,7 @@ class EvalResults:
         constants.MODEL_CENTRIC_MODE,
     ]
     if mode not in supported_modes:
-      raise ValueError('Mode ' + mode + ' must be one of ' +
-                       str(supported_modes))
+      raise ValueError(f'Mode {mode} must be one of {supported_modes}')
 
     self._results = results
     self._mode = mode

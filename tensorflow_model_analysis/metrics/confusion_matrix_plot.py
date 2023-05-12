@@ -72,11 +72,7 @@ def _confusion_matrix_plot(
 
   # Make sure matrices are calculated.
   matrices_computations = binary_confusion_matrices.binary_confusion_matrices(
-      # Use a custom name since we have a custom interpolation strategy which
-      # will cause the default naming used by the binary confusion matrix to be
-      # very long.
-      name=(binary_confusion_matrices.BINARY_CONFUSION_MATRICES_NAME + '_' +
-            name),
+      name=f'{binary_confusion_matrices.BINARY_CONFUSION_MATRICES_NAME}_{name}',
       eval_config=eval_config,
       model_name=model_name,
       output_name=output_name,
@@ -85,7 +81,8 @@ def _confusion_matrix_plot(
       class_weights=class_weights,
       example_weighted=example_weighted,
       thresholds=thresholds,
-      use_histogram=True)
+      use_histogram=True,
+  )
   matrices_key = matrices_computations[-1].keys[-1]
 
   def result(

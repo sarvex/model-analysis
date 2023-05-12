@@ -71,19 +71,18 @@ class _TFJSPredictionDoFn(model_util.BatchReducibleBatchedDoFnWithModels):
     for model_name, model_path in self._src_model_paths.items():
       with tf.io.gfile.GFile(os.path.join(model_path, _MODEL_JSON)) as f:
         model_json = json.load(f)
-        if ('userDefinedMetadata' in model_json and
-            'signature' in model_json['userDefinedMetadata']):
-          model_signature = model_json['userDefinedMetadata']['signature']
-        else:
-          model_signature = model_json['signature']
-        model_inputs = {}
-        for k, v in model_signature['inputs'].items():
-          model_inputs[k] = [int(i['size']) for i in v['tensorShape']['dim']]
-
-        model_outputs = {}
-        for k, v in model_signature['outputs'].items():
-          model_outputs[k] = [int(i['size']) for i in v['tensorShape']['dim']]
-
+        model_signature = (model_json['userDefinedMetadata']['signature'] if
+                           ('userDefinedMetadata' in model_json
+                            and 'signature' in model_json['userDefinedMetadata'])
+                           else model_json['signature'])
+        model_inputs = {
+            k: [int(i['size']) for i in v['tensorShape']['dim']]
+            for k, v in model_signature['inputs'].items()
+        }
+        model_outputs = {
+            k: [int(i['size']) for i in v['tensorShape']['dim']]
+            for k, v in model_signature['outputs'].items()
+        }
       cur_model_path = os.path.join(base_model_path, model_name)
       self._model_properties[model_name] = {
           'inputs': model_inputs,
@@ -119,21 +118,21 @@ class _TFJSPredictionDoFn(model_util.BatchReducibleBatchedDoFnWithModels):
     for spec in self._eval_config.model_specs:
       model_name = spec.name if len(self._eval_config.model_specs) > 1 else ''
       if model_name not in self._loaded_models:
-        raise ValueError('model for "{}" not found: eval_config={}'.format(
-            spec.name, self._eval_config))
+        raise ValueError(
+            f'model for "{spec.name}" not found: eval_config={self._eval_config}'
+        )
 
       model_features = {}
       for k in self._model_properties[model_name]['inputs']:
         k_name = k.split(':')[0]
         if k_name not in batched_features:
-          raise ValueError('model requires feature "{}" not available in '
-                           'input.'.format(k_name))
+          raise ValueError(f'model requires feature "{k_name}" not available in input.')
         dim = self._model_properties[model_name]['inputs'][k]
         elems = []
         for i in batched_features[k_name]:
           if np.ndim(i) > len(dim):
-            raise ValueError('ranks for input "{}" are not compatible '
-                             'with the model.'.format(k_name))
+            raise ValueError(
+                f'ranks for input "{k_name}" are not compatible with the model.')
           # TODO(dzats): See if we can support case where multiple dimensions
           # are not defined.
           elems.append(np.reshape(i, dim))
@@ -160,9 +159,11 @@ class _TFJSPredictionDoFn(model_util.BatchReducibleBatchedDoFnWithModels):
                                      _OUTPUTS_SUBDIR, cur_subdir)
       tf.io.gfile.makedirs(cur_output_path)
       inference_command = [
-          self._binary_path, '--model_path=' +
+          self._binary_path,
+          '--model_path=' +
           os.path.join(self._model_properties[model_name]['path'], _MODEL_JSON),
-          '--inputs_dir=' + cur_input_path, '--outputs_dir=' + cur_output_path
+          f'--inputs_dir={cur_input_path}',
+          f'--outputs_dir={cur_output_path}',
       ]
 
       popen = subprocess.Popen(
@@ -173,8 +174,8 @@ class _TFJSPredictionDoFn(model_util.BatchReducibleBatchedDoFnWithModels):
       stdout, stderr = popen.communicate()
       if popen.returncode != 0:
         raise ValueError(
-            'Inference failed with status {}\nstdout:\n{}\nstderr:\n{}'.format(
-                popen.returncode, stdout, stderr))
+            f'Inference failed with status {popen.returncode}\nstdout:\n{stdout}\nstderr:\n{stderr}'
+        )
 
       try:
         with tf.io.gfile.GFile(os.path.join(cur_output_path, _DATA_JSON)) as f:
@@ -185,8 +186,8 @@ class _TFJSPredictionDoFn(model_util.BatchReducibleBatchedDoFnWithModels):
           shape = json.load(f)
       except FileNotFoundError as e:
         raise FileNotFoundError(
-            'Unable to find files containing inference result. This likely '
-            'means that inference did not succeed. Error {}'.format(e))
+            f'Unable to find files containing inference result. This likely means that inference did not succeed. Error {e}'
+        )
 
       name = [
           n.split(':')[0]

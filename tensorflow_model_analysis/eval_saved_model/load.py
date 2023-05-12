@@ -90,17 +90,13 @@ class EvalSavedModel(eval_metrics_graph.EvalMetricsGraph):
         raise ValueError('additional_fetches should not contain "labels"')
     self._additional_fetches = additional_fetches
     self._blacklist_feature_fetches = blacklist_feature_fetches
-    if tags:
-      self._tags = tags
-    else:
-      self._tags = [constants.EVAL_TAG]
+    self._tags = tags if tags else [constants.EVAL_TAG]
     super().__init__()
 
   def _check_version(self, version_node: types.TensorType):
     version = self._session.run(version_node)
     if not version:
-      raise ValueError('invalid TFMA version in graph (at path %s)' %
-                       self._path)
+      raise ValueError(f'invalid TFMA version in graph (at path {self._path})')
     # We don't actually do any checking for now, since we don't have any
     # compatibility issues.
 
@@ -109,8 +105,8 @@ class EvalSavedModel(eval_metrics_graph.EvalMetricsGraph):
     version = meta_graph_def.collection_def.get(
         encoding.TFMA_VERSION_COLLECTION)
     if version is None:
-      raise ValueError('could not find TFMA version in graph (at path %s)' %
-                       self._path)
+      raise ValueError(
+          f'could not find TFMA version in graph (at path {self._path})')
     # We don't actually do any checking for now, since we don't have any
     # compatibility issues.
 
@@ -167,12 +163,13 @@ class EvalSavedModel(eval_metrics_graph.EvalMetricsGraph):
       signature_def = meta_graph_def.signature_def.get(
           constants.DEFAULT_EVAL_SIGNATURE_DEF_KEY)
       if signature_def is None:
-        raise ValueError('could not find signature with name %s. signature_def '
-                         'was %s' % (constants.EVAL_TAG, signature_def))
+        raise ValueError(
+            f'could not find signature with name {constants.EVAL_TAG}. signature_def was {signature_def}'
+        )
 
-      self._additional_fetches_map = {}
       iterator_initializer = None
 
+      self._additional_fetches_map = {}
       # If features and labels are not stored in the signature_def.inputs then
       # only a single input will be present. We will use this as our flag to
       # indicate whether the features and labels should be read using the legacy
@@ -225,10 +222,13 @@ class EvalSavedModel(eval_metrics_graph.EvalMetricsGraph):
 
       if self._include_default_metrics:
         metrics_map = graph_ref.load_metrics(signature_def, self._graph)
-        metric_ops = {}
-        for metric_name, ops in metrics_map.items():
-          metric_ops[metric_name] = (ops[encoding.VALUE_OP_SUFFIX],
-                                     ops[encoding.UPDATE_OP_SUFFIX])
+        metric_ops = {
+            metric_name: (
+                ops[encoding.VALUE_OP_SUFFIX],
+                ops[encoding.UPDATE_OP_SUFFIX],
+            )
+            for metric_name, ops in metrics_map.items()
+        }
         self.register_additional_metric_ops(metric_ops)
 
       # Make callable for predict_list. The callable for
@@ -270,22 +270,16 @@ class EvalSavedModel(eval_metrics_graph.EvalMetricsGraph):
     Returns:
       Tuple of features, predictions, labels dictionaries (or values).
     """
-    features = {}
-    for key, value in self._features_map.items():
-      features[key] = value
+    features = dict(self._features_map.items())
     # Unnest if it wasn't a dictionary to begin with.
     features = util.extract_tensor_maybe_dict(constants.FEATURES_NAME, features)
 
-    predictions = {}
-    for key, value in self._predictions_map.items():
-      predictions[key] = value
+    predictions = dict(self._predictions_map.items())
     # Unnest if it wasn't a dictionary to begin with.
     predictions = util.extract_tensor_maybe_dict(constants.PREDICTIONS_NAME,
                                                  predictions)
 
-    labels = {}
-    for key, value in self._labels_map.items():
-      labels[key] = value
+    labels = dict(self._labels_map.items())
     # Unnest if it wasn't a dictionary to begin with.
     labels = util.extract_tensor_maybe_dict(constants.LABELS_NAME, labels)
 
@@ -327,11 +321,7 @@ class EvalSavedModel(eval_metrics_graph.EvalMetricsGraph):
         labels returned after feeding the inputs.
     """
     if isinstance(inputs, dict):
-      input_args = []
-      # Only add values for keys that are in the input map (in order).
-      for key in self._input_map:
-        if key in inputs:
-          input_args.append(inputs[key])
+      input_args = [inputs[key] for key in self._input_map if key in inputs]
     else:
       input_args = [inputs]
 
@@ -354,36 +344,36 @@ class EvalSavedModel(eval_metrics_graph.EvalMetricsGraph):
         # TODO(cyfoo): Optimise this.
         split_fetches = {}
         for group, tensors in all_fetches.items():
-          split_tensors = {}
-          for key in tensors:
-            if not np.isscalar(tensors[key]):
-              split_tensors[key] = util.split_tensor_value(tensors[key])
+          split_tensors = {
+              key: util.split_tensor_value(tensors[key])
+              for key in tensors if not np.isscalar(tensors[key])
+          }
           split_fetches[group] = split_tensors
 
         if (not isinstance(input_refs, np.ndarray) or input_refs.ndim != 1 or
             not np.issubdtype(input_refs.dtype, np.integer)):
-          raise ValueError('input_refs should be an 1-D array of integers. '
-                           'input_refs was {}.'.format(input_refs))
+          raise ValueError(
+              f'input_refs should be an 1-D array of integers. input_refs was {input_refs}.'
+          )
 
         for group, tensors in split_fetches.items():
           for result_key, split_values in tensors.items():
             if len(split_values) != input_refs.shape[0]:
               raise ValueError(
-                  'input_refs should be batch-aligned with fetched values; '
-                  '{} key {} had {} slices but input_refs had batch size of '
-                  '{}'.format(group, result_key, len(split_values),
-                              input_refs.shape[0]))
+                  f'input_refs should be batch-aligned with fetched values; {group} key {result_key} had {len(split_values)} slices but input_refs had batch size of {input_refs.shape[0]}'
+              )
 
         for i, input_ref in enumerate(input_refs):
           if input_ref < 0 or input_ref >= len(inputs):
             raise ValueError(
-                'An index in input_refs is out of range: {} vs {}; '
-                'inputs: {}'.format(input_ref, len(inputs), inputs))
+                f'An index in input_refs is out of range: {input_ref} vs {len(inputs)}; inputs: {inputs}'
+            )
           values = {}
           for group, split_tensors in split_fetches.items():
-            tensor_values = {}
-            for key, split_value in split_tensors.items():
-              tensor_values[key] = split_value[i]
+            tensor_values = {
+                key: split_value[i]
+                for key, split_value in split_tensors.items()
+            }
             values[group] = util.extract_tensor_maybe_dict(group, tensor_values)
 
           result.append(FetchedTensorValues(input_ref=input_ref, values=values))

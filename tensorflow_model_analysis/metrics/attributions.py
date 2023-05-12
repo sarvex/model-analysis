@@ -122,17 +122,14 @@ def _mean_attributions(
   example_count_key = computations[-1].keys[-1]
 
   def result(
-      metrics: Dict[metric_types.MetricKey, Any]
-  ) -> Dict[metric_types.AttributionsKey, Dict[str, Union[float, np.ndarray]]]:
+        metrics: Dict[metric_types.MetricKey, Any]
+    ) -> Dict[metric_types.AttributionsKey, Dict[str, Union[float, np.ndarray]]]:
     """Returns mean attributions."""
     total_attributions = metrics[total_attributions_key]
     count = metrics[example_count_key]
     attributions = {}
     for k, v in total_attributions.items():
-      if np.isclose(count, 0.0):
-        attributions[k] = float('nan')
-      else:
-        attributions[k] = v / count
+      attributions[k] = float('nan') if np.isclose(count, 0.0) else v / count
     return {key: attributions}
 
   derived_computation = metric_types.DerivedMetricComputation(
@@ -236,9 +233,9 @@ def _total_attributions_computations(
   """
   if not name:
     if absolute:
-      name = '_' + TOTAL_ABSOLUTE_ATTRIBUTIONS_NAME
+      name = f'_{TOTAL_ABSOLUTE_ATTRIBUTIONS_NAME}'
     else:
-      name = '_' + TOTAL_ATTRIBUTIONS_NAME
+      name = f'_{TOTAL_ATTRIBUTIONS_NAME}'
   key = metric_types.AttributionsKey(
       name=name,
       model_name=model_name,
@@ -270,13 +267,11 @@ class _TotalAttributionsCombiner(beam.CombineFn):
     if (isinstance(b, (float, np.floating)) or
         (isinstance(b, np.ndarray) and b.size == 1)):
       if len(a) != 1:
-        raise ValueError(
-            'Attributions have different array sizes {} != {}'.format(a, b))
+        raise ValueError(f'Attributions have different array sizes {a} != {b}')
       a[0] += abs(float(b)) if self._absolute else float(b)
     else:
       if len(a) != len(b):
-        raise ValueError(
-            'Attributions have different array sizes {} != {}'.format(a, b))
+        raise ValueError(f'Attributions have different array sizes {a} != {b}')
       for i, v in enumerate(b):
         a[i] += abs(v) if self._absolute else v
 
@@ -288,9 +283,8 @@ class _TotalAttributionsCombiner(beam.CombineFn):
       extracts: metric_types.StandardMetricInputs) -> Dict[str, List[float]]:
     if constants.ATTRIBUTIONS_KEY not in extracts:
       raise ValueError(
-          '{} missing from extracts {}\n\n. An attribution extractor is '
-          'required to use attribution metrics'.format(
-              constants.ATTRIBUTIONS_KEY, extracts))
+          f'{constants.ATTRIBUTIONS_KEY} missing from extracts {extracts}\n\n. An attribution extractor is required to use attribution metrics'
+      )
     attributions = extracts[constants.ATTRIBUTIONS_KEY]
     if self._key.model_name:
       attributions = util.get_by_keys(attributions, [self._key.model_name])
@@ -338,17 +332,18 @@ class _TotalAttributionsCombiner(beam.CombineFn):
   def extract_output(
       self, accumulator: Dict[str, List[float]]
   ) -> Dict[metric_types.AttributionsKey, Dict[str, Union[float, np.ndarray]]]:
-    result = {}
-    for k, v in accumulator.items():
-      result[k] = v[0] if len(v) == 1 else np.array(v)
+    result = {
+        k: v[0] if len(v) == 1 else np.array(v)
+        for k, v in accumulator.items()
+    }
     return {self._key: result}
 
 
 def _scores_by_class_id(class_id: int, scores: np.ndarray) -> np.ndarray:
   """Returns selected class ID or raises ValueError."""
   if class_id < 0 or class_id >= len(scores):
-    raise ValueError('class_id "{}" out of range for attribution {}'.format(
-        class_id, scores))
+    raise ValueError(
+        f'class_id "{class_id}" out of range for attribution {scores}')
   return scores[class_id]
 
 
@@ -356,10 +351,8 @@ def _scores_by_top_k(top_k: int, scores: np.ndarray) -> np.ndarray:
   """Returns top_k scores or raises ValueError if invalid value for top_k."""
   if scores.shape[-1] < top_k:
     raise ValueError(
-        'not enough attributions were provided to perform the requested '
-        'calcuations for top k. The requested value for k is {}, but the '
-        'values are {}\n\nThis may be caused by a metric configuration error '
-        'or an error in the pipeline.'.format(top_k, scores))
+        f'not enough attributions were provided to perform the requested calcuations for top k. The requested value for k is {top_k}, but the values are {scores}\n\nThis may be caused by a metric configuration error or an error in the pipeline.'
+    )
 
   indices = np.argpartition(scores, -top_k)[-top_k:]
   indices = indices[np.argsort(-scores[indices])]

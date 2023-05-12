@@ -181,9 +181,9 @@ def ComputeQueryBasedMetrics(  # pylint: disable=invalid-name
     yield ('{}'.format(np.asscalar(feature_value)), extract)
 
   def merge_dictionaries(
-      dictionaries: Tuple[Dict[str, Any], ...]) -> Dict[str, Any]:
+        dictionaries: Tuple[Dict[str, Any], ...]) -> Dict[str, Any]:
     """Merge dictionaries in a tuple into a single dictionary."""
-    result = dict()
+    result = {}
     for d in dictionaries:
       intersection = set(d.keys()) & set(result.keys())
       if intersection:

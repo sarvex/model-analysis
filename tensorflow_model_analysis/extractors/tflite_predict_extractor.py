@@ -63,9 +63,7 @@ class _TFLitePredictionDoFn(model_util.BatchReducibleBatchedDoFnWithModels):
     # ('serving_default') will be used as an exported name when saving.
     if input_name.startswith('serving_default_'):
       input_name = input_name[len('serving_default_'):]
-    # Remove argument that starts with ':'.
-    input_name = input_name.split(':')[0]
-    return input_name
+    return input_name.split(':')[0]
 
   def _batch_reducible_process(
       self, element: types.Extracts) -> Sequence[types.Extracts]:
@@ -77,8 +75,9 @@ class _TFLitePredictionDoFn(model_util.BatchReducibleBatchedDoFnWithModels):
     for spec in self._eval_config.model_specs:
       model_name = spec.name if len(self._eval_config.model_specs) > 1 else ''
       if model_name not in self._loaded_models:
-        raise ValueError('model for "{}" not found: eval_config={}'.format(
-            spec.name, self._eval_config))
+        raise ValueError(
+            f'model for "{spec.name}" not found: eval_config={self._eval_config}'
+        )
 
       interpreter = self._interpreters[model_name]
 

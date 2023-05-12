@@ -60,11 +60,9 @@ def _addExampleCountMetricCallback(  # pylint: disable=invalid-name
     features_dict, predictions_dict, labels_dict):
   del features_dict
   del labels_dict
-  metric_ops = {}
   value_op, update_op = metric_fns.total(
       tf.shape(input=predictions_dict['logits'])[0])
-  metric_ops['added_example_count'] = (value_op, update_op)
-  return metric_ops
+  return {'added_example_count': (value_op, update_op)}
 
 
 class MetricsPlotsAndValidationsEvaluatorTest(
@@ -438,7 +436,7 @@ class MetricsPlotsAndValidationsEvaluatorTest(
                        check_validations)
 
     metric_filter = beam.metrics.metric.MetricsFilter().with_name(
-        'metric_computed_ExampleCount_v2_' + constants.TF_KERAS)
+        f'metric_computed_ExampleCount_v2_{constants.TF_KERAS}')
     actual_metrics_count = pipeline.run().metrics().query(
         filter=metric_filter)['counters'][0].committed
     self.assertEqual(actual_metrics_count, 1)
@@ -2799,7 +2797,7 @@ class MetricsPlotsAndValidationsEvaluatorTest(
               extractors=extractors, evaluators=evaluators))
 
     metric_filter = beam.metrics.metric.MetricsFilter().with_name(
-        'metric_computed_ExampleCount_v2_' + constants.MODEL_AGNOSTIC)
+        f'metric_computed_ExampleCount_v2_{constants.MODEL_AGNOSTIC}')
     actual_metrics_count = pipeline.run().metrics().query(
         filter=metric_filter)['counters'][0].committed
     self.assertEqual(actual_metrics_count, 1)

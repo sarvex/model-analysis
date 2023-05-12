@@ -78,7 +78,7 @@ class _EvalSavedModelExporter(tf.estimator.Exporter):
              is_the_final_export: bool) -> bytes:
     del is_the_final_export
 
-    export_result = export.export_eval_savedmodel(
+    return export.export_eval_savedmodel(
         estimator=estimator,
         export_dir_base=export_path,
         eval_input_receiver_fn=self._eval_input_receiver_fn,
@@ -86,8 +86,6 @@ class _EvalSavedModelExporter(tf.estimator.Exporter):
         assets_extra=self._assets_extra,
         checkpoint_path=checkpoint_path,
     )
-
-    return export_result
 
 
 class FinalExporter(tf.estimator.Exporter):

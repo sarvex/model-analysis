@@ -39,9 +39,14 @@ VALUES_SUFFIX = 'values'
 
 def is_sparse_or_ragged_tensor_value(tensor: Any) -> bool:
   """Returns true if sparse or ragged tensor."""
-  return (isinstance(tensor, types.SparseTensorValue) or
-          isinstance(tensor, types.RaggedTensorValue) or
-          isinstance(tensor, tf.compat.v1.SparseTensorValue))
+  return isinstance(
+      tensor,
+      (
+          types.SparseTensorValue,
+          types.RaggedTensorValue,
+          tf.compat.v1.SparseTensorValue,
+      ),
+  )
 
 
 def to_numpy(tensor: Any) -> np.ndarray:
@@ -66,9 +71,9 @@ def to_sparse_tensor_value(
 def to_ragged_tensor_value(
     ragged_tensor: tf.RaggedTensor) -> types.RaggedTensorValue:
   """Converts ragged tensor to RaggedTensorValue."""
-  nested_row_splits = []
-  for splits in ragged_tensor.nested_row_splits:
-    nested_row_splits.append(to_numpy(splits))
+  nested_row_splits = [
+      to_numpy(splits) for splits in ragged_tensor.nested_row_splits
+  ]
   return types.RaggedTensorValue(
       to_numpy(ragged_tensor.flat_values), nested_row_splits)
 
@@ -90,17 +95,13 @@ def to_tensor_value(tensor: Any) -> types.TensorValue:
 def to_tensor_values(tensors: Any) -> types.TensorValueMaybeMultiLevelDict:
   """Converts multi-level dict of tensors to tensor values."""
   if isinstance(tensors, Mapping):
-    result = {}
-    for k, v in tensors.items():
-      result[k] = to_tensor_values(v)
-    return result
+    return {k: to_tensor_values(v) for k, v in tensors.items()}
   else:
     return to_tensor_value(tensors)
 
 
 def is_tensorflow_tensor(obj):
-  return (isinstance(obj, tf.Tensor) or isinstance(obj, tf.SparseTensor) or
-          isinstance(obj, tf.RaggedTensor))
+  return isinstance(obj, (tf.Tensor, tf.SparseTensor, tf.RaggedTensor))
 
 
 def to_tensorflow_tensor(tensor_value: types.TensorValue) -> types.TensorType:
@@ -108,8 +109,8 @@ def to_tensorflow_tensor(tensor_value: types.TensorValue) -> types.TensorType:
   if isinstance(tensor_value, types.RaggedTensorValue):
     return tf.RaggedTensor.from_nested_row_splits(
         tensor_value.values, tensor_value.nested_row_splits)
-  elif (isinstance(tensor_value, types.SparseTensorValue) or
-        isinstance(tensor_value, tf.compat.v1.SparseTensorValue)):
+  elif isinstance(tensor_value,
+                  (types.SparseTensorValue, tf.compat.v1.SparseTensorValue)):
     return tf.SparseTensor(
         values=tensor_value.values,
         indices=tensor_value.indices,
@@ -254,21 +255,19 @@ def get_by_keys(data: Mapping[str, Any],
       continue
 
     if not isinstance(value, Mapping):
-      raise ValueError('expected dict for "%s" but found %s: %s' %
-                       (format_keys(keys[:i + 1]), type(value), data))
+      raise ValueError(
+          f'expected dict for "{format_keys(keys[:i + 1])}" but found {type(value)}: {data}'
+      )
 
     if key in value:
       value = value[key]
       keys_matched += 1
       continue
 
-    # If values have prefixes matching the key, return those values (stripped
-    # of the prefix) instead.
-    prefix_matches = {}
-    for k, v in value.items():
-      if k.startswith(key + '/'):
-        prefix_matches[k[len(key) + 1:]] = v
-    if prefix_matches:
+    if prefix_matches := {
+        k[len(key) + 1:]: v
+        for k, v in value.items() if k.startswith(f'{key}/')
+    }:
       value = prefix_matches
       keys_matched += 1
       continue
@@ -280,8 +279,9 @@ def get_by_keys(data: Mapping[str, Any],
       return default_value
     if optional:
       return None
-    raise ValueError('"%s" key not found (or value is empty dict): %s' %
-                     (format_keys(keys[:keys_matched + 1]), data))
+    raise ValueError(
+        f'"{format_keys(keys[:keys_matched + 1])}" key not found (or value is empty dict): {data}'
+    )
   return value
 
 
@@ -303,14 +303,10 @@ def include_filter(
   if not include:
     return target
 
-  result = {}
-  for key, subkeys in include.items():
-    if key in target:
-      if subkeys:
-        result[key] = include_filter(subkeys, target[key])
-      else:
-        result[key] = target[key]
-  return result
+  return {
+      key: include_filter(subkeys, target[key]) if subkeys else target[key]
+      for key, subkeys in include.items() if key in target
+  }
 
 
 def exclude_filter(
@@ -330,8 +326,7 @@ def exclude_filter(
   for key, value in target.items():
     if key in exclude:
       if exclude[key]:
-        value = exclude_filter(exclude[key], target[key])
-        if value:
+        if value := exclude_filter(exclude[key], target[key]):
           result[key] = value
     else:
       result[key] = value
@@ -352,8 +347,8 @@ def merge_filters(
   """
   if (not isinstance(filter1, MutableMapping) or
       not isinstance(filter2, MutableMapping)):
-    raise ValueError('invalid filter, non-dict type used as a value: {}'.format(
-        [filter1, filter2]))
+    raise ValueError(
+        f'invalid filter, non-dict type used as a value: {[filter1, filter2]}')
   if not filter1:
     return filter1
   if not filter2:
@@ -388,9 +383,10 @@ def reraise_augmented(exception: Exception, additional_message: str) -> None:
     # pytype: disable=attribute-error
     # PyType doesn't know that Exception has the args attribute.
     new_exception = type(exception)(
-        exception.args[0] + ' additional message: ' + additional_message,
-        *exception.args[1:])
-    # pytype: enable=attribute-error
+        f'{exception.args[0]} additional message: {additional_message}',
+        *exception.args[1:],
+    )
+      # pytype: enable=attribute-error
   except:  # pylint: disable=bare-except
     # If anything goes wrong, construct a RuntimeError whose message
     # records the original exception's type and message.
@@ -436,10 +432,10 @@ def kwargs_only(fn):
 
   def wrapped_fn(*args, **kwargs):
     """Wrapped function."""
-    if args:
-      if not has_self or (has_self and len(args) != 1):
-        raise TypeError('function %s must be called using keyword-arguments '
-                        'only.' % fn.__name__)
+    if args and (not has_self or (has_self and len(args) != 1)):
+      raise TypeError(
+          f'function {fn.__name__} must be called using keyword-arguments only.'
+      )
 
     if has_self:
       if len(args) != 1:
@@ -451,13 +447,14 @@ def kwargs_only(fn):
     for arg_name, arg_has_default, arg_default_value in zip(
         arg_list, has_default, default_values):
       if not arg_has_default and arg_name not in kwargs:
-        raise TypeError('function %s must be called with %s specified' %
-                        (fn.__name__, arg_name))
+        raise TypeError(
+            f'function {fn.__name__} must be called with {arg_name} specified')
       kwargs_to_pass[arg_name] = kwargs.pop(arg_name, arg_default_value)
 
     if kwargs:
-      raise TypeError('function %s called with extraneous kwargs: %s' %
-                      (fn.__name__, kwargs.keys()))
+      raise TypeError(
+          f'function {fn.__name__} called with extraneous kwargs: {kwargs.keys()}'
+      )
 
     return fn(**kwargs_to_pass)
 
@@ -510,8 +507,10 @@ def merge_extracts(extracts: List[types.Extracts]) -> types.Extracts:
           raise RuntimeError(
               'Failed to convert value for key "{}"'.format(key)) from e
       return {k: merge_lists(v) for k, v in target.items()}
-    elif target and (isinstance(target[0], tf.compat.v1.SparseTensorValue) or
-                     isinstance(target[0], types.SparseTensorValue)):
+    elif target and (isinstance(
+          target[0],
+          (tf.compat.v1.SparseTensorValue, types.SparseTensorValue),
+      )):
       t = tf.sparse.concat(
           0,
           [tf.sparse.expand_dims(to_tensorflow_tensor(t), 0) for t in target])
@@ -603,10 +602,7 @@ class StandardExtracts(collections.abc.MutableMapping):
     """
     if extracts is not None and kwargs:
       raise ValueError('only one of extracts or kwargs should be used')
-    if extracts is not None:
-      self.extracts = extracts
-    else:
-      self.extracts = kwargs
+    self.extracts = extracts if extracts is not None else kwargs
 
   def __repr__(self) -> str:
     return repr(self.extracts)

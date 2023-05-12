@@ -92,21 +92,20 @@ class _TFMAPredictionDoFn(model_util.BatchReducibleDoFnWithModels):
                                                                  Any]) -> Any:
     spec = model_util.get_model_spec(self._eval_config, model_name)
     if not spec:
-      raise ValueError(
-          'Missing model_spec for model_name "{}"'.format(model_name))
+      raise ValueError(f'Missing model_spec for model_name "{model_name}"')
     if spec.example_weight_key:
       if spec.example_weight_key not in features:
         raise ValueError(
-            'Missing feature for example_weight_key "{}": features={}'.format(
-                spec.example_weight_key, features))
+            f'Missing feature for example_weight_key "{spec.example_weight_key}": features={features}'
+        )
       return features[spec.example_weight_key]
     elif spec.example_weight_keys:
       example_weights = {}
       for k, v in spec.example_weight_keys.items():
         if v not in features:
           raise ValueError(
-              'Missing feature for example_weight_key "{}": features={}'.format(
-                  k, features))
+              f'Missing feature for example_weight_key "{k}": features={features}'
+          )
         example_weights[k] = features[v]
       return example_weights
     else:
@@ -138,24 +137,22 @@ class _TFMAPredictionDoFn(model_util.BatchReducibleDoFnWithModels):
             if not self._eval_config:
               element_copy[constants.FEATURES_PREDICTIONS_LABELS_KEY] = (
                   loaded_model.as_features_predictions_labels([fetched])[0])
-          else:
-            if not self._eval_config:
-              raise ValueError(
-                  'PredictExtractor can only be used with multi-output models '
-                  'if eval_config is passed.')
+          elif self._eval_config:
             # If only one model, the predictions are stored without using a dict
             element_copy[constants.PREDICTIONS_KEY] = {
                 model_name: element_copy[constants.PREDICTIONS_KEY]
             }
+          else:
+            raise ValueError(
+                'PredictExtractor can only be used with multi-output models '
+                'if eval_config is passed.')
           result.append(element_copy)
         else:
           element_copy = result[i]
           # Assume values except for predictions are same for all models.
           element_copy[constants.PREDICTIONS_KEY][model_name] = fetched.values[
               eval_saved_model_constants.PREDICTIONS_NAME]
-    if self._eval_config:
-      return [_wrap_as_batched_extract(result)]
-    return result
+    return [_wrap_as_batched_extract(result)] if self._eval_config else result
 
 
 # TODO(pachristopher): Currently the batched extract has a list of per-example

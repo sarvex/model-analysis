@@ -67,10 +67,10 @@ class TFMetricsAccumulator:
     self._inputs = []
     # Weights have shape (num_outputs, num_metrics)
     self._weights = []  # type: List[List[Optional[np.ndarray]]]
-    for input_count in input_counts:
-      self._inputs.append(tuple([] for _ in range(input_count)))
-    for output_metric_count in metric_counts:
-      self._weights.append([None] * output_metric_count)
+    self._inputs.extend(
+        tuple([] for _ in range(input_count)) for input_count in input_counts)
+    self._weights.extend([None] * output_metric_count
+                         for output_metric_count in metric_counts)
     self._size_estimator = size_estimator.SizeEstimator(
         size_threshold=self._TOTAL_INPUT_BYTE_SIZE_THRESHOLD,
         size_fn=size_estimator_fn)
@@ -197,16 +197,17 @@ class TFCompilableMetricsAccumulator(TFMetricsAccumulator):
     if self._pad:
 
       def pad_value(
-          name: str, a: np.ndarray,
-          configured_value: Optional[Union[float, int]]) -> Union[int, float]:
+              name: str, a: np.ndarray,
+              configured_value: Optional[Union[float, int]]) -> Union[int, float]:
         if configured_value is None:
           return 0 if a.dtype.kind == 'i' else .0
         if isinstance(configured_value, int) and a.dtype.kind == 'i':
           return configured_value
         if isinstance(configured_value, float) and a.dtype.kind == 'f':
           return configured_value
-        raise ValueError('%s padding is configured to be %s but data is %s' %
-                         (name, type(configured_value), a.dtype))
+        raise ValueError(
+            f'{name} padding is configured to be {type(configured_value)} but data is {a.dtype}'
+        )
 
       labels = [
           metric_util.pad(l, self._pad_to_dim,

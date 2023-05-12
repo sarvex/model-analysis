@@ -109,12 +109,12 @@ def _metric_keys(metrics: Iterable[tf.keras.metrics.Metric], model_name: str,
     elif hasattr(metric, 'top_k') and metric.top_k is not None:
       sub_key = metric_types.SubKey(top_k=metric.top_k)
     for output_name in output_names or []:
-      if metric.name.startswith(output_name + '_'):
+      if metric.name.startswith(f'{output_name}_'):
         # TODO(b/171559113): Output prefixes used to be added multiple times.
         # Remove this while loop after the last TF version with the issue is
         # no longer supported.
         name = metric.name
-        while name.startswith(output_name + '_'):
+        while name.startswith(f'{output_name}_'):
           name = name[len(output_name) + 1:]
         result.append(
             metric_types.MetricKey(
@@ -162,7 +162,7 @@ class _KerasCombiner(model_util.CombineFnWithModels):
     # outputs - e.g. weighted loss). For the actual computations, we will store
     # the inputs under the respective output indices (with '' having no inputs),
     # but store all the metric weights under output index 0.
-    self._output_names = sorted(set(key.output_name or '' for key in keys))
+    self._output_names = sorted({key.output_name or '' for key in keys})
     counts = collections.defaultdict(int)
     for key in keys:
       if key.output_name:
@@ -170,12 +170,12 @@ class _KerasCombiner(model_util.CombineFnWithModels):
     counts[''] = len(keys)
     self._output_counts = [counts[name] for name in self._output_names]
     self._batch_size_beam_metric_dist = beam.metrics.Metrics.distribution(
-        constants.METRICS_NAMESPACE,
-        '{}_combine_batch_size'.format(beam_metrics_prefix))
+        constants.METRICS_NAMESPACE, f'{beam_metrics_prefix}_combine_batch_size')
     self._total_input_byte_size_beam_metric_dist = (
         beam.metrics.Metrics.distribution(
             constants.METRICS_NAMESPACE,
-            '{}_combine_batch_bytes_size'.format(beam_metrics_prefix)))
+            f'{beam_metrics_prefix}_combine_batch_bytes_size',
+        ))
     self._num_compacts = beam.metrics.Metrics.counter(
         constants.METRICS_NAMESPACE, 'num_compacts')
 
@@ -216,7 +216,7 @@ class _KerasCombiner(model_util.CombineFnWithModels):
     self._batch_size_beam_metric_dist.update(accumulator.len_inputs())
     self._total_input_byte_size_beam_metric_dist.update(
         accumulator.get_size_estimate())
-    for metric_index, metric in enumerate(self._metrics()):
+    for metric in self._metrics():
       metric.reset_states()
     self._update_state(accumulator)
     # For metrics stored with the model, the outputs get encoded in the
@@ -455,9 +455,9 @@ class _KerasEvaluateCombiner(_KerasCombiner):
     inputs = model_util.get_inputs(record_batch, input_specs,
                                    self._tensor_adapter)
     if inputs is None:
-      raise ValueError('unable to prepare inputs for evaluation: '
-                       'input_specs={}, record_batch={}'.format(
-                           input_specs, record_batch))
+      raise ValueError(
+          f'unable to prepare inputs for evaluation: input_specs={input_specs}, record_batch={record_batch}'
+      )
     self._model.evaluate(
         x=inputs,
         y=labels,

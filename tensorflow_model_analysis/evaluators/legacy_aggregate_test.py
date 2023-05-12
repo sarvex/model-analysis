@@ -28,8 +28,9 @@ from tensorflow_model_analysis.evaluators import legacy_poisson_bootstrap as poi
 def create_test_input(predict_list, slice_list):
   results = []
   for entry in predict_list:
-    for slice_key in slice_list:
-      results.append((slice_key, {constants.INPUT_KEY: entry}))
+    results.extend((slice_key, {
+        constants.INPUT_KEY: entry
+    }) for slice_key in slice_list)
   return results
 
 
@@ -68,7 +69,7 @@ class AggregateTest(testutil.TensorflowModelAnalysisTest):
               eval_shared_model=eval_shared_model, desired_batch_size=3))
 
       def check_result(got):
-        self.assertEqual(1, len(got), 'got: %s' % got)
+        self.assertEqual(1, len(got), f'got: {got}')
         slice_key, metrics = got[0]
         self.assertEqual(slice_key, ())
         self.assertDictElementsAlmostEqual(
@@ -122,7 +123,7 @@ class AggregateTest(testutil.TensorflowModelAnalysisTest):
               eval_shared_model=eval_shared_model, desired_batch_size=3))
 
       def check_result(got):
-        self.assertEqual(3, len(got), 'got: %s' % got)
+        self.assertEqual(3, len(got), f'got: {got}')
         slices = {}
         for slice_key, metrics in got:
           slices[slice_key] = metrics
@@ -250,7 +251,7 @@ class AggregateTest(testutil.TensorflowModelAnalysisTest):
             my_dict['my_mean_age_times_label'], 0, 0, 0, 19)
 
       def check_result(got):
-        self.assertEqual(3, len(got), 'got: %s' % got)
+        self.assertEqual(3, len(got), f'got: {got}')
         slices = {}
         for slice_key, metrics in got:
           slices[slice_key] = metrics

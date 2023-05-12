@@ -79,23 +79,22 @@ def _ndcg(gain_key: str,
     if sub_keys is None:
       sub_keys = []
     for k in top_k_list:
-      if not any([sub_key.top_k == k for sub_key in sub_keys]):
+      if all(sub_key.top_k != k for sub_key in sub_keys):
         sub_keys.append(metric_types.SubKey(top_k=k))
-  if not sub_keys or any([sub_key.top_k is None for sub_key in sub_keys]):
-    raise ValueError(
-        'top_k values are required to use NDCG metric: {}'.format(sub_keys))
+  if not sub_keys or any(sub_key.top_k is None for sub_key in sub_keys):
+    raise ValueError(f'top_k values are required to use NDCG metric: {sub_keys}')
   computations = []
   for model_name in model_names if model_names else ['']:
     for output_name in output_names if output_names else ['']:
-      keys = []
-      for sub_key in sub_keys:
-        keys.append(
-            metric_types.MetricKey(
-                name,
-                model_name=model_name,
-                output_name=output_name,
-                sub_key=sub_key,
-                example_weighted=example_weighted))
+      keys = [
+          metric_types.MetricKey(
+              name,
+              model_name=model_name,
+              output_name=output_name,
+              sub_key=sub_key,
+              example_weighted=example_weighted,
+          ) for sub_key in sub_keys
+      ]
       computations.append(
           metric_types.MetricComputation(
               keys=keys,
@@ -153,9 +152,8 @@ class _NDCGCombiner(beam.CombineFn):
     query = util.get_by_keys(element.features, [self._query_key]).flatten()
     if query.size == 0 or not np.all(query == query[0]):
       raise ValueError(
-          'missing query value or not all values are the same: value={}, '
-          'metric_keys={}, StandardMetricInputs={}'.format(
-              query, self._metric_keys, element))
+          f'missing query value or not all values are the same: value={query}, metric_keys={self._metric_keys}, StandardMetricInputs={element}'
+      )
     return query[0]
 
   def _to_gains_example_weight(
@@ -173,13 +171,9 @@ class _NDCGCombiner(beam.CombineFn):
             require_single_example_weight=True))  # pytype: disable=wrong-arg-types
     gains = util.get_by_keys(element.features, [self._gain_key])
     if gains.size != predictions.size:
-      raise ValueError('expected {} to be same size as predictions {} != {}: '
-                       'gains={}, metric_keys={}, '
-                       'StandardMetricInputs={}'.format(self._gain_key,
-                                                        gains.size,
-                                                        predictions.size, gains,
-                                                        self._metric_keys,
-                                                        element))
+      raise ValueError(
+          f'expected {self._gain_key} to be same size as predictions {gains.size} != {predictions.size}: gains={gains}, metric_keys={self._metric_keys}, StandardMetricInputs={element}'
+      )
     gains = gains.reshape(predictions.shape)
     # Ignore non-positive gains.
     if gains.max() <= 0:
@@ -219,10 +213,7 @@ class _NDCGCombiner(beam.CombineFn):
     ]
     dcg = self._calculate_dcg_at_k(max_rank, ranked_values)
     optimal_dcg = self._calculate_dcg_at_k(max_rank, optimal_values)
-    if optimal_dcg > 0:
-      return dcg / optimal_dcg
-    else:
-      return 0
+    return dcg / optimal_dcg if optimal_dcg > 0 else 0
 
   def create_accumulator(self):
     return _NDCGAccumulator(len(self._metric_keys))
@@ -249,10 +240,8 @@ class _NDCGCombiner(beam.CombineFn):
   def extract_output(
       self,
       accumulator: _NDCGAccumulator) -> Dict[metric_types.MetricKey, float]:
-    output = {}
-    for i, key in enumerate(self._metric_keys):
-      if accumulator.total_weighted_examples > 0:
-        output[key] = accumulator.ndcg[i] / accumulator.total_weighted_examples
-      else:
-        output[key] = float('nan')
-    return output
+    return {
+        key: accumulator.ndcg[i] / accumulator.total_weighted_examples
+        if accumulator.total_weighted_examples > 0 else float('nan')
+        for i, key in enumerate(self._metric_keys)
+    }

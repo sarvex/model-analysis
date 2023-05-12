@@ -54,7 +54,7 @@ class ExportTest(testutil.TensorflowModelAnalysisTest):
       features = feature_metadata['features']
       feature_columns = feature_metadata['feature_columns']
       associated_tensors = feature_metadata['associated_tensors']
-      self.assertSetEqual(set(['language', 'age']), set(features.keys()))
+      self.assertSetEqual({'language', 'age'}, set(features.keys()))
       self.assertIsInstance(features['language'], tf.SparseTensor)
       self.assertIsInstance(features['age'], tf.Tensor)
 
@@ -64,12 +64,11 @@ class ExportTest(testutil.TensorflowModelAnalysisTest):
       # Since we don't have references to the expected Tensors in the graph,
       # we simply check that the keys are present, and the resolved Tensors
       # contain the feature names.
-      cols_to_tensors = {}
-      cols_to_tensors[feature_columns[0]['key']] = associated_tensors[0]
-      cols_to_tensors[feature_columns[1]['key']] = associated_tensors[1]
-
-      self.assertSetEqual(
-          set(['language_embedding', 'age']), set(cols_to_tensors.keys()))
+      cols_to_tensors = {
+          feature_columns[0]['key']: associated_tensors[0],
+          feature_columns[1]['key']: associated_tensors[1],
+      }
+      self.assertSetEqual({'language_embedding', 'age'}, set(cols_to_tensors.keys()))
       self.assertIn('age', cols_to_tensors['age'].name)
       self.assertIn('language_embedding',
                     cols_to_tensors['language_embedding'].name)

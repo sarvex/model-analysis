@@ -61,16 +61,14 @@ class BuildAnalysisTableTest(testutil.TensorflowModelAnalysisTest):
 
       if isinstance(expected_column.value, (np.ndarray, list)):
         # verify the arrays are identical
-        if sort_values:
-          # sort got value for testing non-deterministic values
-          got_value = sorted(got_column.value)
-        else:
-          got_value = got_column.value
+        got_value = sorted(got_column.value) if sort_values else got_column.value
         for got_v, expected_v in zip(got_value, expected_column.value):
-          self.assertAlmostEqual(got_v, expected_v, places, msg='key %s' % key)
+          self.assertAlmostEqual(got_v, expected_v, places, msg=f'key {key}')
       else:
-        self.assertAlmostEqual(
-            got_column.value, expected_column.value, places, msg='key %s' % key)
+        self.assertAlmostEqual(got_column.value,
+                               expected_column.value,
+                               places,
+                               msg=f'key {key}')
 
   def testBuildAnalysisTable(self):
     model_location = self._exportEvalSavedModel(
@@ -89,14 +87,16 @@ class BuildAnalysisTableTest(testutil.TensorflowModelAnalysisTest):
           contrib.BuildAnalysisTable(eval_shared_model=eval_shared_model))
 
       def check_result(got):
-        self.assertEqual(1, len(got), 'got: %s' % got)
+        self.assertEqual(1, len(got), f'got: {got}')
         extracts = got[0]
 
         # Values of type MaterializedColumn are emitted to signal to
         # downstream sink components to output the data to file.
-        materialized_dict = dict((k, v)
-                                 for k, v in extracts.items()
-                                 if isinstance(v, types.MaterializedColumn))
+        materialized_dict = {
+            k: v
+            for k, v in extracts.items()
+            if isinstance(v, types.MaterializedColumn)
+        }
         self._assertMaterializedColumns(
             materialized_dict,
             {
@@ -154,14 +154,16 @@ class BuildAnalysisTableTest(testutil.TensorflowModelAnalysisTest):
                                                        slice_spec))
 
       def check_result(got):
-        self.assertEqual(1, len(got), 'got: %s' % got)
+        self.assertEqual(1, len(got), f'got: {got}')
         extracts = got[0]
 
         # Values of type MaterializedColumn are emitted to signal to
         # downstream sink components to output the data to file.
-        materialized_dict = dict((k, v)
-                                 for k, v in extracts.items()
-                                 if isinstance(v, types.MaterializedColumn))
+        materialized_dict = {
+            k: v
+            for k, v in extracts.items()
+            if isinstance(v, types.MaterializedColumn)
+        }
         self._assertMaterializedColumns(
             materialized_dict, {
                 constants.SLICE_KEYS_KEY:

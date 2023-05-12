@@ -326,17 +326,22 @@ class ModelUtilTest(testutil.TensorflowModelAnalysisTest,
         'f2': tf.constant([[1], [2]], dtype=tf.int64),
         'f3': tf.constant([['hello'], ['world']], dtype=tf.string)
     }
-    filtered_tensors = model_util.filter_by_input_names(tensors, [
-        'f1' + model_util.KERAS_INPUT_SUFFIX,
-        'f3' + model_util.KERAS_INPUT_SUFFIX
-    ])
+    filtered_tensors = model_util.filter_by_input_names(
+        tensors,
+        [
+            f'f1{model_util.KERAS_INPUT_SUFFIX}',
+            f'f3{model_util.KERAS_INPUT_SUFFIX}',
+        ],
+    )
     self.assertLen(filtered_tensors, 2)
     self.assertAllEqual(
         tf.constant([[1.1], [2.1]], dtype=tf.float32),
-        filtered_tensors['f1' + model_util.KERAS_INPUT_SUFFIX])
+        filtered_tensors[f'f1{model_util.KERAS_INPUT_SUFFIX}'],
+    )
     self.assertAllEqual(
         tf.constant([['hello'], ['world']], dtype=tf.string),
-        filtered_tensors['f3' + model_util.KERAS_INPUT_SUFFIX])
+        filtered_tensors[f'f3{model_util.KERAS_INPUT_SUFFIX}'],
+    )
 
   @parameterized.named_parameters(
       ('output_name_and_label_key', config_pb2.ModelSpec(label_key='label'),

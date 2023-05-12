@@ -97,7 +97,7 @@ class QueryBasedMetricsEvaluatorTest(testutil.TensorflowModelAnalysisTest):
         fixed_string='query3',
         fixed_int=3)
 
-    serialized_examples = [
+    return [
         query1_example1.SerializeToString(),
         query1_example2.SerializeToString(),
         query2_example1.SerializeToString(),
@@ -105,8 +105,6 @@ class QueryBasedMetricsEvaluatorTest(testutil.TensorflowModelAnalysisTest):
         query2_example3.SerializeToString(),
         query3_example1.SerializeToString(),
     ]
-
-    return serialized_examples
 
   def testEvaluateQueryBasedMetrics(self):
     temp_eval_export_dir = self._getEvalExportDir()
@@ -143,7 +141,7 @@ class QueryBasedMetricsEvaluatorTest(testutil.TensorflowModelAnalysisTest):
 
       def check_metrics(got):
         try:
-          self.assertEqual(1, len(got), 'got: %s' % got)
+          self.assertEqual(1, len(got), f'got: {got}')
           got_slice_key, got_metrics = got[0]
           self.assertEqual(got_slice_key, ())
           self.assertDictElementsAlmostEqual(
